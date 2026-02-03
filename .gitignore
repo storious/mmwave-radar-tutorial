@@ -1,0 +1,16 @@
+# Python-generated files
+__pycache__/
+*.py[oc]
+build/
+dist/
+wheels/
+*.egg-info
+radar_frames/
+radar_ra_map/
+radar_rd_map/
+.vscode/
+*.bin
+data/
+*mp4
+# Virtual environments
+.venv
