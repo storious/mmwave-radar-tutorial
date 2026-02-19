@@ -1,0 +1,12 @@
+module;
+
+#include <fstream>
+#include <vector>
+
+export module frame_reader;
+
+import std;
+
+export class FrameReader {
+  std::vector<std::ifstream> files;
+};

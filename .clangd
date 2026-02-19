@@ -1,0 +1,6 @@
+CompileFlags:
+  Add:
+    - "-std=c++23"
+    - "-stdlib=libc++"
+    - "-fmodule-file=std=std.pcm"
+  Compiler: clang++-20
