@@ -11,7 +11,7 @@ numRxAntennas = 4
 numChirpsLoop = 128  # 每个发射天线的 chirp 数
 periodicity = 0.1  # s
 
-bin_path = "1770031467.bin"
+bin_path = "adc_data_Raw_0.bin"
 
 # --- 2. 读取与解析数据 ---
 chirps_per_frame = numChirpsLoop * numTxAntennas
@@ -56,7 +56,7 @@ print(f"重组后的数据维度 (Frames, Loops, Txs, Rxs, Samples): {adc_data_5
 start_freq = 60e9
 c = 3e8
 adc_sample_rate = 4.4e6
-freq_slope = 60.012e12
+freq_slope = 30.012e12
 wavelength = c / start_freq
 idle = 7e-6
 adc_start_time = 6e-6
@@ -160,7 +160,7 @@ for frame_idx in range(num_frames):
         aspect="auto",
         cmap="viridis",
         origin="lower",
-        extent=[x_axis[0], x_axis[-1], y_axis[0], y_axis[-1]],
+        extent=(x_axis[0], x_axis[-1], y_axis[0], y_axis[-1]),
         interpolation="bilinear",
         vmax=vmax_dynamic,
         vmin=vmin_dynamic,
