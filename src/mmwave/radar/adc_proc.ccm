@@ -1,0 +1,32 @@
+export module mmwave.radar.adc_proc;
+
+import std;
+import mmwave.radar.types;
+import mmwave.common.error;
+
+export namespace mmwave::radar {
+
+using common::FrameError;
+
+template <typename T> using Result = std::expected<T, FrameError>;
+
+struct TI_LVDS_Converter {
+  static constexpr std::size_t stride = 4;
+
+  [[nodiscard]]
+  static Result<ADCFrame> convert(const RawInt16 &raw) noexcept {
+    if (raw.size() % stride != 0)
+      return std::unexpected(FrameError::invalid_lvds_data);
+
+    ADCFrame frame(raw.size() / 2);
+    std::size_t idx = 0;
+
+    for (std::size_t i = 0; i + 3 < raw.size(); i += stride) {
+      frame[idx++] = ComplexI16{raw[i], raw[i + 2]};
+      frame[idx++] = ComplexI16{raw[i + 1], raw[i + 3]};
+    }
+    return frame;
+  }
+};
+
+} // namespace mmwave::radar

@@ -1,0 +1,13 @@
+export module mmwave.radar.fft;
+
+import std;
+import mmwave.radar.types;
+
+export namespace mmwave::radar {
+
+struct RadarFFT {
+  static void run_1d(ConstFrameView) noexcept {}
+  static void run_2d(ConstFrameView) noexcept {}
+};
+
+} // namespace mmwave::radar

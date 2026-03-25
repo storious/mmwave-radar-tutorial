@@ -1,0 +1,124 @@
+export module mmwave.radar.frame_processor;
+
+import std;
+import mmwave.radar.types;
+import mmwave.radar.adc_proc;
+import mmwave.common.error;
+
+export namespace mmwave::radar {
+
+using common::FrameError;
+using Conv = TI_LVDS_Converter;
+
+using VoidResult = Result<std::monostate>;
+
+template <typename Config = DefaultConfig> class FrameReader {
+public:
+  FrameReader() = default;
+  ~FrameReader() { close(); }
+
+  FrameReader(const FrameReader &) = delete;
+  FrameReader &operator=(const FrameReader &) = delete;
+  FrameReader(FrameReader &&) = default;
+  FrameReader &operator=(FrameReader &&) = default;
+
+  void add_file(std::string path) noexcept {
+    _paths.push_back(std::move(path));
+    _opened = false;
+  }
+
+  void add_files(std::vector<std::string> paths) noexcept {
+    std::move(paths.begin(), paths.end(), back_inserter(_paths));
+    _opened = false;
+  }
+
+  [[nodiscard]] VoidResult open() noexcept {
+    if (_paths.empty())
+      return std::unexpected(FrameError::no_files_added);
+
+    _streams.clear();
+    for (const auto &p : _paths) {
+      std::ifstream fs(p, std::ios::binary);
+      if (!fs)
+        return std::unexpected(FrameError::file_open_failed);
+      _streams.push_back(std::move(fs));
+    }
+    _opened = true;
+    return {};
+  }
+
+  void close() noexcept {
+    for (auto &s : _streams)
+      if (s.is_open())
+        s.close();
+    _opened = false;
+  }
+
+  [[nodiscard]] Result<RawBytes> read_raw() noexcept {
+    if (!_opened)
+      return std::unexpected(FrameError::files_not_open);
+
+    RawBytes buf(Config::frame_bytes);
+    auto n = read_bytes(buf.data(), buf.size());
+    if (n != buf.size())
+      return std::unexpected(n == 0 ? FrameError::end_of_file
+                                    : FrameError::read_incomplete);
+    return buf;
+  }
+
+  [[nodiscard]] Result<ADCFrame> read_frame() noexcept {
+    auto raw = read_raw();
+    if (!raw)
+      return std::unexpected(raw.error());
+
+    RawInt16 i16(raw->size() / sizeof(std::int16_t));
+    memcpy(i16.data(), raw->data(), raw->size());
+    return Conv::convert(i16);
+  }
+
+  [[nodiscard]] bool is_open() const noexcept { return _opened; }
+
+private:
+  [[nodiscard]] std::size_t read_bytes(std::byte *dst, std::size_t n) noexcept {
+    std::size_t done = 0;
+    for (auto &s : _streams) {
+      std::size_t rem = n - done;
+      if (rem == 0)
+        break;
+      s.read(reinterpret_cast<char *>(dst + done), rem);
+      done += s.gcount();
+    }
+    return done;
+  }
+
+  std::vector<std::string> _paths;
+  std::vector<std::ifstream> _streams;
+  bool _opened = false;
+};
+
+class FrameProcessor {
+public:
+  template <typename C = DefaultConfig>
+  [[nodiscard]] static Result<FrameView> make_view(ADCFrame &f) noexcept {
+    if (f.size() != C::total_samples)
+      return std::unexpected(FrameError::data_mismatch);
+    return FrameView{f.data(), C::chirps_per_frame, C::rx_channels,
+                     C::samples_per_chirp};
+  }
+
+  template <typename C = DefaultConfig>
+  [[nodiscard]] static Result<ConstFrameView>
+  make_const_view(const ADCFrame &f) noexcept {
+    if (f.size() != C::total_samples)
+      return std::unexpected(FrameError::data_mismatch);
+    return ConstFrameView{f.data(), C::chirps_per_frame, C::rx_channels,
+                          C::samples_per_chirp};
+  }
+
+  static void print_info(ConstFrameView v) noexcept {
+    std::println("Frame: {} chirps | {} rx | {} samples", v.extent(0),
+                 v.extent(1), v.extent(2));
+  }
+};
+
+} // namespace mmwave::radar

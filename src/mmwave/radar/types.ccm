@@ -1,0 +1,32 @@
+export module mmwave.radar.types;
+
+import std;
+
+export namespace mmwave::radar {
+
+template <std::size_t SamplesPerChirp, std::size_t RxChannels,
+          std::size_t ChirpsPerFrame>
+struct RadarConfig {
+  static constexpr std::size_t samples_per_chirp = SamplesPerChirp;
+  static constexpr std::size_t rx_channels = RxChannels;
+  static constexpr std::size_t chirps_per_frame = ChirpsPerFrame;
+  static constexpr std::size_t total_samples =
+      chirps_per_frame * rx_channels * samples_per_chirp;
+  static constexpr std::size_t frame_bytes =
+      total_samples * sizeof(std::complex<std::int16_t>);
+};
+
+using DefaultConfig = RadarConfig<256, 4, 128>;
+
+using RawBytes = std::vector<std::byte>;
+using RawInt16 = std::vector<std::int16_t>;
+using ComplexI16 = std::complex<std::int16_t>;
+using ADCFrame = std::vector<ComplexI16>;
+
+using FrameView =
+    std::mdspan<ComplexI16, std::dextents<std::size_t, 3>, std::layout_right>;
+using ConstFrameView =
+    std::mdspan<const ComplexI16, std::dextents<std::size_t, 3>,
+                std::layout_right>;
+
+} // namespace mmwave::radar

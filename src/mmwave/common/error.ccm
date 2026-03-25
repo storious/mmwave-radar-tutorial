@@ -1,0 +1,16 @@
+export module mmwave.common.error;
+
+export namespace mmwave::common {
+
+enum class FrameError {
+  no_files_added,
+  files_not_open,
+  file_open_failed,
+  invalid_frame_size,
+  read_incomplete,
+  invalid_lvds_data,
+  data_mismatch,
+  end_of_file
+};
+
+}
