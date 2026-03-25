@@ -46,7 +46,7 @@ auto main(int argc, char *argv[]) -> int {
   LVDS frames(adc_data.data());
 
   std::cout << "data dimension: [Chirps=" << ChirpsPerFrame
-            << ", Rx=" << NumRxAntennas << ", Samples=" << NumADCSamples << "]"
+            << ", Rx=" << NumRx << ", Samples=" << NumADCSamples << "]"
             << std::endl;
 
   std::cout << "\nSample data (Chirp 0, Rx 0, Samples 0-4):" << std::endl;

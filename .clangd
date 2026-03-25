@@ -3,4 +3,5 @@ CompileFlags:
     - "-std=c++23"
     - "-stdlib=libc++"
     - "-fmodule-file=std=std.pcm"
-  Compiler: clang++-20
+    - "-fprebuilt-module-path=."
+    - "-I /usr/share/libc++/v1/"

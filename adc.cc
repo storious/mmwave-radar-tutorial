@@ -13,7 +13,7 @@ using ComplexI16 = std::complex<int16_t>;
 using ADCData = std::vector<ComplexI16>;
 using LVDS =
     std::mdspan<ComplexI16, std::extents<std::size_t, ChirpsPerFrame,
-                                         NumRxAntennas, NumADCSamples>>;
+                                         NumRx, NumADCSamples>>;
 
 // ==========================================
 // Core logical implementation

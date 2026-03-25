@@ -2,7 +2,6 @@
 #define ARENA_HPP_
 
 #include <array>
-#include <memory>
 #include <memory_resource>
 
 template <typename T> class Arena {
