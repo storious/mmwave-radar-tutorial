@@ -10,7 +10,7 @@ typedef struct {
   int8_t num_rx;
   int16_t num_samples;
   int16_t num_chirps;
-  int16_t num_frames; // set by `read_adc_to_frames`
+  int16_t num_frames; // this field will set in `read_adc_to_frames`
 } RadarConfig;
 
 int get_total_frames(FILE *in, const RadarConfig *config);
