@@ -1,0 +1,14 @@
+{
+    "workspace": {
+        "library": [
+            "~/lib/xmake-luals-addon/library" 
+        ]
+    },
+    "runtime": {
+        "version": "Lua 5.5" 
+    },
+    "diagnostics": {
+        "globals": ["_G"] 
+    }
+}
+
