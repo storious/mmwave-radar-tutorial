@@ -1,5 +1,5 @@
 #include "mmwave.h"
-#include <stdio.h> // 需要包含以使用 printf 和 fopen_s
+#include <stdio.h>
 #include <stdlib.h>
 
 int main() {
@@ -21,8 +21,7 @@ int main() {
   // 2. 分配 FFTW 内存
   size_t total_samples = (size_t)max_frames * config.num_chirps *
                          config.num_rx * config.num_samples;
-  fftwf_complex *data =
-      (fftwf_complex *)fftwf_malloc(sizeof(fftwf_complex) * total_samples);
+  Complex *data = (Complex *)fftwf_malloc(sizeof(Complex) * total_samples);
 
   // 3. 读取数据
   int actual_frames = read_adc_to_frames(fp, data, &config);
