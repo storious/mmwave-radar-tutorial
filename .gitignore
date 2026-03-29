@@ -1,0 +1,6 @@
+*.o
+*.exe
+*.so
+.cache
+libfftw*
+compile_commands.json

@@ -1,0 +1,5 @@
+CompileFlags:
+  Add:
+    - "-xc"
+    - "-std=c23"
+    - "-ID:/Shared/FFTW"
