@@ -32,7 +32,7 @@ class EKFTarget:
         self.Q = np.eye(6) * 0.05
         self.R = np.eye(3) * 0.15
         self.lost_cnt = 0
-        self.max_lost = 8
+        self.max_lost = 12
 
     def predict(self):
         self.x = self.F @ self.x
@@ -57,7 +57,7 @@ class MultiTracker:
     def __init__(self):
         self.trackers = []
         self.next_id = 1
-        self.max_dist = 2.5  # 关联距离
+        self.max_dist = 2.5
 
     def associate(self, detections):
         if len(detections) == 0:
@@ -71,10 +71,10 @@ class MultiTracker:
             for j, d in enumerate(detections):
                 cost[i, j] = np.linalg.norm(t.get_pos() - d[:3])
         row, col = linear_sum_assignment(cost)
-        match, used_det = [], set()
+        match, used_det = set(), set()
         for i, j in zip(row, col):
             if cost[i, j] < self.max_dist:
-                match.append((i, j))
+                match.add((i, j))
                 used_det.add(j)
         for i, j in match:
             self.trackers[i].update(detections[j][:3])
@@ -91,14 +91,7 @@ class MultiTracker:
     def predict_all(self):
         [t.predict() for t in self.trackers]
 
-    def get_smpl_ready(self):
-        out = []
-        for t in self.trackers:
-            out.append([t.id, *t.get_pos(), *t.get_vel()])
-        return np.array(out) if out else np.empty((0, 7))
 
-
-# ===================== 主类（核心修复区）=====================
 class RDMapVisualizer(threading.Thread):
     def __init__(self, radar_config, queue_maxsize=10):
         super().__init__()
@@ -114,22 +107,21 @@ class RDMapVisualizer(threading.Thread):
         self.numSamples = radar_config["numADCSamples"]
         self.wavelength = radar_config["WaveLength"]
 
-        self.range_res = 0.15
-        self.vel_res = 0.08
-
-        # 【修复1】移除背景滤波Cube，改用频域掩膜，彻底消除拖影
+        self.range_res = radar_config["range_res"]
+        self.vel_res = radar_config["vel_res"]
 
         self.colormap = cv2.COLORMAP_VIRIDIS
         self.point_cloud = np.empty((0, 5))
+        self.skeletons = []
 
         self.range_win = np.hamming(self.numSamples).astype(np.float32)
         self.doppler_win = np.hamming(self.numChirps).astype(np.float32)
-
-        self.pc_buffer = []
-        self.max_pc_buffer = 1
-
         self.tracker = MultiTracker()
-        self.smpl_input = np.empty((0, 7))
+
+        # 骨骼稳控参数
+        self.skel_buf = None
+        self.alpha = 0.20  # 低通：稳为主，轻微跟动作
+        self.GROUND_Z = 0.02  # 强制脚踝贴地面
 
     def _remove_dc_advanced(self, data):
         real = np.real(data)
@@ -138,65 +130,49 @@ class RDMapVisualizer(threading.Thread):
         mi = np.mean(imag, axis=-1, keepdims=True)
         return (real - mr) + 1j * (imag - mi)
 
+    # 【超强点云过滤：干掉浮空伪点、杂点】
     def _human_pc_filter(self, pc):
         if len(pc) == 0:
             return pc
-        snr_ok = pc[:, 4] > 10.0  # SNR稍微放宽一点
+        snr_ok = pc[:, 4] > 12.0  # SNR拉高，弱杂点全删
         r = np.linalg.norm(pc[:, :3], axis=1)
-        range_ok = (r > 0.5) & (r < 10.0)  # 稍微放宽距离
-        vel_ok = np.abs(pc[:, 3]) < 3.0  # 放宽速度限制
-        z_ok = (pc[:, 2] > -0.5) & (pc[:, 2] < 2.5)  # 放宽高度
+        range_ok = (r > 0.5) & (r < 8.0)
+        vel_ok = np.abs(pc[:, 3]) < 2.5
+        z_ok = (pc[:, 2] > 0.05) & (pc[:, 2] < 2.0)  # 严格人体高度
         return pc[snr_ok & range_ok & vel_ok & z_ok]
 
-    # 【修复2】优化聚类参数：增大eps，防止单人分裂
-    def _mmmesh_dbscan_cluster(self, pc):
-        if len(pc) < 3:
-            # 如果点太少，直接当做噪声或者单独的目标
-            return [], []  # (检测中心列表), (用于SMPL的点云块列表)
-
-        # 【关键】只使用 XY 进行聚类，忽略 Z (高度)，防止人体被切断
-        # eps 设为 1.2 米，允许人体点云在水平面上分散
-        cls = DBSCAN(eps=1.2, min_samples=3).fit(pc[:, :2])
-
+    def _dbscan_cluster(self, pc):
+        if len(pc) < 5:
+            return [], []
+        cls = DBSCAN(eps=1.0, min_samples=4).fit(pc[:, :2])
         labels = cls.labels_
-
-        det_centers = []  # 给跟踪器用的：每个簇的中心坐标
-        smpl_blocks = []  # 给 SMPL 用的：每个簇的所有点
-
+        det_centers = []
+        smpl_blocks = []
         for lab in np.unique(labels):
             if lab == -1:
-                continue  # 丢弃噪声点
-
-            # 取出属于这个簇的所有点
+                continue
             cluster_points = pc[labels == lab]
-
-            # 1. 计算中心点 (用于跟踪)
-            # 使用 SNR 加权质心，更稳定
-            weights = cluster_points[:, 4]  # SNR
+            z_mean = np.mean(cluster_points[:, 2])
+            if not (0.2 < z_mean < 1.8):
+                continue
+            weights = cluster_points[:, 4]
             center = np.average(cluster_points[:, :3], axis=0, weights=weights)
             vel = np.mean(cluster_points[:, 3])
-
             det_centers.append([center[0], center[1], center[2], vel])
-
-            # 2. 保留所有点 (用于 SMPL)
             smpl_blocks.append(cluster_points)
-
         return det_centers, smpl_blocks
 
-    def _cfar(self, rdm, guard=2, win=4, th=3.5):
+    def _cfar(self, rdm, guard=2, win=4, th=3.8):
         det = np.zeros_like(rdm, bool)
         H, W = rdm.shape
-        # 简化的CA-CFAR
         for i in range(win + guard, H - (win + guard)):
             for j in range(win + guard, W - (win + guard)):
-                # 训练区域
                 p = rdm[
                     i - win - guard : i + win + guard + 1,
                     j - win - guard : j + win + guard + 1,
                 ]
-                # 剔除保护区域
-                p = np.delete(p, slice(guard, p.shape[0] - guard), 0)
-                p = np.delete(p, slice(guard, p.shape[1] - guard), 1)
+                p = np.delete(p, slice(guard, -guard), 0)
+                p = np.delete(p, slice(guard, -guard), 1)
                 noise = np.mean(p)
                 if rdm[i, j] > noise * th:
                     det[i, j] = True
@@ -204,14 +180,13 @@ class RDMapVisualizer(threading.Thread):
 
     def _angle(self, sig):
         try:
-            # 角度估算
             az = np.fft.fftshift(np.fft.fft(sig.sum(axis=0), 128))
             el = np.fft.fftshift(np.fft.fft(sig.sum(axis=1), 64))
-            a = np.clip(((np.argmax(np.abs(az)) - 64) / 64) * 40, -40, 40)
-            e = np.clip(((np.argmax(np.abs(el)) - 32) / 32) * 20, -20, 20)
+            a = np.clip(((np.argmax(np.abs(az)) - 64) / 64) * 35, -35, 35)
+            e = np.clip(((np.argmax(np.abs(el)) - 32) / 32) * 15, 1, 15)
             return a, e
         except Exception:
-            return 0.0, 0.0
+            return 0.0, 3.0
 
     def _get_cloud(self, rdm_data, rdm_mag, targets):
         pc = []
@@ -229,102 +204,131 @@ class RDMapVisualizer(threading.Thread):
             pc.append([x, y, z, vel, snr])
         return np.array(pc) if pc else np.empty((0, 5))
 
+    # ===================== 加固版骨骼：脚贴地 + 生理约束 + 防浮空 =====================
+    def _generate_skeleton(self, cluster_points):
+        if len(cluster_points) < 8:
+            return self.skel_buf
+
+        z_max = np.max(cluster_points[:, 2])
+        z_min = np.min(cluster_points[:, 2])
+        h_total = z_max - z_min
+
+        # 人体身高硬卡死，异常直接沿用旧骨骼
+        if not (1.2 < h_total < 2.0):
+            return self.skel_buf
+
+        # 分层裁切
+        head_h = z_max - h_total * 0.05
+        neck_h = z_max - h_total * 0.18
+        shoulder_h = z_max - h_total * 0.28
+        hip_h = z_max - h_total * 0.55
+
+        body_cen = np.mean(cluster_points[:, :3], axis=0)
+
+        # 头部
+        head_pt = np.array([body_cen[0], body_cen[1], head_h])
+        neck_pt = np.array([body_cen[0], body_cen[1], neck_h])
+
+        # 肩膀固定合理宽度，不乱飘
+        shl_pt = np.array([body_cen[0] - 0.22, body_cen[1], shoulder_h])
+        shr_pt = np.array([body_cen[0] + 0.22, body_cen[1], shoulder_h])
+
+        # 手臂长度卡死
+        el_l = shl_pt + np.array([-0.32, 0, -0.3])
+        el_r = shr_pt + np.array([+0.32, 0, -0.3])
+        wr_l = el_l + np.array([-0.25, 0, -0.22])
+        wr_r = el_r + np.array([+0.25, 0, -0.22])
+
+        # 胯部
+        hip_l = np.array([body_cen[0] - 0.18, body_cen[1], hip_h])
+        hip_r = np.array([body_cen[0] + 0.18, body_cen[1], hip_h])
+
+        # 膝盖
+        kn_l = hip_l + np.array([0, 0, -0.45])
+        kn_r = hip_r + np.array([0, 0, -0.45])
+
+        # 【核心】脚踝强制钉死地面，永不浮空
+        an_l = np.array([kn_l[0], kn_l[1], self.GROUND_Z])
+        an_r = np.array([kn_r[0], kn_r[1], self.GROUND_Z])
+
+        skel_new = {
+            "head": head_pt,
+            "neck": neck_pt,
+            "shoulderL": shl_pt,
+            "shoulderR": shr_pt,
+            "elbowL": el_l,
+            "elbowR": el_r,
+            "wristL": wr_l,
+            "wristR": wr_r,
+            "hipL": hip_l,
+            "hipR": hip_r,
+            "kneeL": kn_l,
+            "kneeR": kn_r,
+            "ankleL": an_l,
+            "ankleR": an_r,
+        }
+
+        # 时序低通防抖，杜绝闪跳
+        if self.skel_buf is None:
+            self.skel_buf = skel_new
+        else:
+            for k in skel_new.keys():
+                self.skel_buf[k] = (1 - self.alpha) * self.skel_buf[
+                    k
+                ] + self.alpha * skel_new[k]
+
+        return self.skel_buf
+
     def _process_rd_map(self, adc_frame):
         adc = adc_frame.astype(np.complex64)
-
-        # 1. 去直流
         adc = self._remove_dc_advanced(adc)
-
-        # 2. Range FFT
-        adc *= self.range_win[None, None, None, :]
-        range_data = np.fft.fft(adc, axis=-1)
-        range_data = range_data[..., : self.numSamples // 2]  # 取前半部分
-
-        # 3. Doppler FFT
-        range_data *= self.doppler_win[:, None, None, None]
-        doppler_data = np.fft.fft(range_data, axis=0)
+        range_data = np.fft.fft(adc * self.range_win[None, None, None, :], axis=-1)[
+            ..., : self.numSamples // 2
+        ]
+        doppler_data = np.fft.fft(
+            range_data * self.doppler_win[:, None, None, None], axis=0
+        )
         doppler_data = np.fft.fftshift(doppler_data, axes=0)
-
-        # ============================================================
-        # 【核心修复】静态杂波抑制：在多普勒域直接将零速度通道置零
-        # 这比时域相减干净得多，不会有拖尾，RD图会非常清晰
-        # ============================================================
-        center_doppler = self.numChirps // 2
-        # 将中间的零速度通道及其附近2个通道置零 (共5个通道)
-        doppler_data[center_doppler - 1 : center_doppler + 2, :, :, :] = 0
-
-        # 4. 生成RD图
         rdm_mag = np.sum(np.abs(doppler_data), axis=(1, 2))
-
-        # 5. CFAR 检测
         det_map = self._cfar(rdm_mag)
         targets = np.argwhere(det_map)
-
-        # 6. 点云生成与聚类
         pc = self._get_cloud(doppler_data, rdm_mag, targets)
         pc = self._human_pc_filter(pc)
-
-        det_centers, smpl_blocks = self._mmmesh_dbscan_cluster(pc)
-
-        # 7. 跟踪
+        det_centers, smpl_blocks = self._dbscan_cluster(pc)
         self.tracker.predict_all()
         self.tracker.associate(det_centers)
-        final_point_cloud = []
-        if len(self.tracker.trackers) > 0 and len(smpl_blocks) > 0:
-            # 将当前的簇匹配给对应的 Tracker
-            # 这里做简化：认为 smpl_blocks 的顺序和 det_centers 一致
-            # associate 之后，trackers 的顺序可能被打乱，需要重新匹配
 
-            # 重新匹配逻辑
-            for t in self.tracker.trackers:
-                t_pos = t.get_pos()
-                # 在 det_centers 中找到最近的簇
-                min_dist = 999
-                best_block = None
-                for i, center in enumerate(det_centers):
-                    dist = np.linalg.norm(t_pos - center[:3])
-                    if dist < min_dist:
-                        min_dist = dist
-                        best_block = smpl_blocks[i]
+        final_pc = []
+        self.skeletons = []
+        for t in self.tracker.trackers:
+            t_pos = t.get_pos()
+            best_blk = None
+            min_d = 999
+            for i, c in enumerate(det_centers):
+                d = np.linalg.norm(t_pos - c[:3])
+                if d < min_d:
+                    min_d = d
+                    best_blk = smpl_blocks[i]
+            if best_blk is not None and min_d < 1.8:
+                final_pc.append(best_blk)
+                skel = self._generate_skeleton(best_blk)
+                if skel:
+                    self.skeletons.append(skel)
 
-                # 如果找到了匹配的块，且距离合理
-                if best_block is not None and min_dist < 2.0:
-                    # 给这些点打上 ID 标签
-                    # best_block 是 (N, 5)，我们增加一列 ID
-                    # 但 SMPL 通常只需要 xyz，所以直接用 best_block
-                    final_point_cloud.append(best_block)
+        self.point_cloud = np.vstack(final_pc) if final_pc else np.empty((0, 5))
 
-                    # 这里的 smpl_input 可以存该簇的点云均值或其他特征
-                    # 保持接口兼容，这里依然输出中心点信息
-                    self.smpl_input = np.array([[t.id, *t.get_pos(), *t.get_vel()]])
-
-        # 合并所有点云用于可视化
-        if final_point_cloud:
-            self.point_cloud = np.vstack(final_point_cloud)
-        else:
-            self.point_cloud = np.empty((0, 5))
-
-        # 8. RD图渲染
         db = 20 * np.log10(rdm_mag + 1e-9)
-        # 自动对比度调整
         vmin, vmax = np.percentile(db, [5, 99.5])
         norm = ((db - vmin) / (vmax - vmin + 1e-6)).clip(0, 1) * 255
         color = cv2.applyColorMap(norm.astype(np.uint8), self.colormap)
-
-        # 【修复3】图像放大：使用线性插值代替最近邻，图像更平滑清晰
         color = cv2.resize(color, (1024, 512), interpolation=cv2.INTER_LINEAR)
-
-        return color, self.point_cloud
+        return color
 
     def run(self):
-        print("✅ 修复版：RD图清晰化 + 静态杂波频域抑制 + 聚类优化")
         while self.is_running.is_set():
             try:
-                raw = self.data_queue.get(timeout=0.1)
-                frame, pc = self._process_rd_map(raw)
-                if len(self.smpl_input) > 0:
-                    print(f"🧍 实际跟踪人数:{len(self.smpl_input)}")
-                cv2.imshow("Radar RD Map | Fixed", frame)
+                frame = self._process_rd_map(self.data_queue.get(timeout=0.1))
+                cv2.imshow("Radar RD Map", frame)
                 if cv2.waitKey(1) & 0xFF == ord("q"):
                     break
             except queue.Empty:
@@ -344,25 +348,25 @@ class RDMapVisualizer(threading.Thread):
         self.join()
 
 
-# ===================== 主程序 =====================
+# ===================== 主程序：3D火柴人可视化 =====================
 if __name__ == "__main__":
     import config as cfg
     import utils
-    import time
 
     config = {
-        "numChirpLoops": 128,
-        "numTx": 3,
-        "numRx": 4,
-        "numADCSamples": 256,
+        "numChirpLoops": cfg.numChirpLoops,
+        "numTx": cfg.numTx,
+        "numRx": cfg.numRx,
+        "numADCSamples": cfg.numADCSamples,
         "WaveLength": cfg.WaveLength,
+        "range_res": cfg.range_resolution,
+        "vel_res": cfg.velocity_resolution,
     }
 
     bin_path = "adc_data_Raw_1.bin"
     chirps_per_frame = cfg.numChirpLoops * 3
     bytes_per_frame = chirps_per_frame * 4 * cfg.numADCSamples * 4
 
-    # 这里假设你已经有了读取逻辑，请确保路径正确
     try:
         raw_bytes = np.fromfile(bin_path, dtype=np.uint8)
         num_frames = len(raw_bytes) // bytes_per_frame
@@ -375,32 +379,67 @@ if __name__ == "__main__":
         )
     except Exception as e:
         print(f"数据读取错误: {e}")
-        print("请确保当前目录下有adc_data_Raw_1.bin文件，且config配置正确")
         exit()
 
     vis = RDMapVisualizer(config)
     vis.start()
 
     plt.ion()
-    fig = plt.figure(figsize=(7, 6))
+    fig = plt.figure(figsize=(8, 8))
     ax = fig.add_subplot(projection="3d")
+    ax.set_box_aspect([1, 1, 1])
+
+    bones = [
+        ["head", "neck"],
+        ["neck", "shoulderL"],
+        ["neck", "shoulderR"],
+        ["shoulderL", "elbowL"],
+        ["elbowL", "wristL"],
+        ["shoulderR", "elbowR"],
+        ["elbowR", "wristR"],
+        ["neck", "hipL"],
+        ["neck", "hipR"],
+        ["hipL", "kneeL"],
+        ["kneeL", "ankleL"],
+        ["hipR", "kneeR"],
+        ["kneeR", "ankleR"],
+    ]
 
     for i in range(num_frames):
         vis.update(adc_data[i])
         pc = vis.point_cloud
-        smpl = vis.smpl_input
+        skels = vis.skeletons
 
         ax.cla()
-        ax.set(xlim=(-5, 5), ylim=(0, 15), zlim=(0, 3))
-        ax.set_xlabel("X")
-        ax.set_ylabel("Y")
-        ax.set_zlabel("Z")
+        ax.set(xlabel="X (m)", ylabel="Y (m)", zlabel="Z (m)")
+        ax.set(xlim=(-4, 4), ylim=(0, 10), zlim=(0, 2.2))
+        ax.set_box_aspect([1, 1, 1])
+
         if len(pc) > 0:
-            ax.scatter(pc[:, 0], pc[:, 1], pc[:, 2], c=pc[:, 3], cmap="viridis", s=12)
-        if len(smpl) > 0:
-            ax.scatter(smpl[:, 1], smpl[:, 2], smpl[:, 3], c="red", s=80, marker="*")
+            ax.scatter(*pc[:, :3].T, c="blue", s=5, alpha=0.5)
+
+        for sk in skels:
+            if not sk:
+                continue
+            for p1, p2 in bones:
+                if p1 in sk and p2 in sk:
+                    ax.plot(
+                        [sk[p1][0], sk[p2][0]],
+                        [sk[p1][1], sk[p2][1]],
+                        [sk[p1][2], sk[p2][2]],
+                        "r-",
+                        linewidth=2,
+                    )
+            ax.scatter(sk["head"][0], sk["head"][1], sk["head"][2], c="red", s=25)
+            ax.scatter(
+                sk["ankleL"][0], sk["ankleL"][1], sk["ankleL"][2], c="green", s=20
+            )
+            ax.scatter(
+                sk["ankleR"][0], sk["ankleR"][1], sk["ankleR"][2], c="green", s=20
+            )
+
         fig.canvas.flush_events()
-        time.sleep(0.03)
+        plt.pause(0.04)
 
     vis.stop()
     plt.close(fig)
