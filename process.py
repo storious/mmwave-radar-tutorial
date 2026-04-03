@@ -164,7 +164,7 @@ if __name__ == "__main__":
         "numADCSamples": 256,
         "WaveLength": cfg.WaveLength,
     }
-    bin_path = "adc_data_Raw_0.bin"
+    bin_path = "adc_data_Raw_1.bin"
 
     chirps_per_frame = cfg.numChirpLoops * 3
     bytes_per_frame = chirps_per_frame * 4 * cfg.numADCSamples * 4

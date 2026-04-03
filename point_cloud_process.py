@@ -1,10 +1,12 @@
-import threading
 import queue
+import threading
+
 import cv2
-import numpy as np
 import matplotlib.pyplot as plt
-from sklearn.cluster import DBSCAN
+import numpy as np
+from scipy.ndimage import uniform_filter
 from scipy.optimize import linear_sum_assignment
+from sklearn.cluster import DBSCAN
 
 
 # ===================== 6维EKF跟踪核心 =====================
@@ -32,7 +34,8 @@ class EKFTarget:
         self.Q = np.eye(6) * 0.05
         self.R = np.eye(3) * 0.15
         self.lost_cnt = 0
-        self.max_lost = 12
+        self.max_lost = 10  # 缩短超时时间，更快消失
+        self.skel_smooth = None
 
     def predict(self):
         self.x = self.F @ self.x
@@ -57,14 +60,14 @@ class MultiTracker:
     def __init__(self):
         self.trackers = []
         self.next_id = 1
-        self.max_dist = 2.5
+        self.max_dist = 2.0
 
     def associate(self, detections):
         if len(detections) == 0:
             for t in self.trackers:
                 t.lost_cnt += 1
             self.trackers = [t for t in self.trackers if t.lost_cnt < t.max_lost]
-            return []
+            return
         n_trk, n_det = len(self.trackers), len(detections)
         cost = np.zeros((n_trk, n_det))
         for i, t in enumerate(self.trackers):
@@ -102,11 +105,7 @@ class RDMapVisualizer(threading.Thread):
 
         self.cfg = radar_config
         self.numChirps = radar_config["numChirpLoops"]
-        self.numTx = radar_config["numTx"]
-        self.numRx = radar_config["numRx"]
         self.numSamples = radar_config["numADCSamples"]
-        self.wavelength = radar_config["WaveLength"]
-
         self.range_res = radar_config["range_res"]
         self.vel_res = radar_config["vel_res"]
 
@@ -117,11 +116,7 @@ class RDMapVisualizer(threading.Thread):
         self.range_win = np.hamming(self.numSamples).astype(np.float32)
         self.doppler_win = np.hamming(self.numChirps).astype(np.float32)
         self.tracker = MultiTracker()
-
-        # 骨骼稳控参数
-        self.skel_buf = None
-        self.alpha = 0.20  # 低通：稳为主，轻微跟动作
-        self.GROUND_Z = 0.02  # 强制脚踝贴地面
+        self.STD_HEIGHT = 1.75
 
     def _remove_dc_advanced(self, data):
         real = np.real(data)
@@ -130,15 +125,14 @@ class RDMapVisualizer(threading.Thread):
         mi = np.mean(imag, axis=-1, keepdims=True)
         return (real - mr) + 1j * (imag - mi)
 
-    # 【超强点云过滤：干掉浮空伪点、杂点】
     def _human_pc_filter(self, pc):
         if len(pc) == 0:
             return pc
-        snr_ok = pc[:, 4] > 12.0  # SNR拉高，弱杂点全删
+        snr_ok = pc[:, 4] > 8.0
         r = np.linalg.norm(pc[:, :3], axis=1)
-        range_ok = (r > 0.5) & (r < 8.0)
+        range_ok = (r > 0.5) & (r < 12.0)
         vel_ok = np.abs(pc[:, 3]) < 2.5
-        z_ok = (pc[:, 2] > 0.05) & (pc[:, 2] < 2.0)  # 严格人体高度
+        z_ok = (pc[:, 2] > 0.0) & (pc[:, 2] < 2.5)
         return pc[snr_ok & range_ok & vel_ok & z_ok]
 
     def _dbscan_cluster(self, pc):
@@ -146,14 +140,12 @@ class RDMapVisualizer(threading.Thread):
             return [], []
         cls = DBSCAN(eps=1.0, min_samples=4).fit(pc[:, :2])
         labels = cls.labels_
-        det_centers = []
-        smpl_blocks = []
+        det_centers, smpl_blocks = [], []
         for lab in np.unique(labels):
             if lab == -1:
                 continue
             cluster_points = pc[labels == lab]
-            z_mean = np.mean(cluster_points[:, 2])
-            if not (0.2 < z_mean < 1.8):
+            if np.mean(cluster_points[:, 2]) > 2.0:
                 continue
             weights = cluster_points[:, 4]
             center = np.average(cluster_points[:, :3], axis=0, weights=weights)
@@ -162,20 +154,16 @@ class RDMapVisualizer(threading.Thread):
             smpl_blocks.append(cluster_points)
         return det_centers, smpl_blocks
 
-    def _cfar(self, rdm, guard=2, win=4, th=3.8):
-        det = np.zeros_like(rdm, bool)
-        H, W = rdm.shape
-        for i in range(win + guard, H - (win + guard)):
-            for j in range(win + guard, W - (win + guard)):
-                p = rdm[
-                    i - win - guard : i + win + guard + 1,
-                    j - win - guard : j + win + guard + 1,
-                ]
-                p = np.delete(p, slice(guard, -guard), 0)
-                p = np.delete(p, slice(guard, -guard), 1)
-                noise = np.mean(p)
-                if rdm[i, j] > noise * th:
-                    det[i, j] = True
+    def _cfar_vectorized(self, rdm, win=4, guard=2, th=3.8):
+        kernel_size = 2 * (win + guard) + 1
+        local_sum = uniform_filter(rdm, size=kernel_size, mode="reflect")
+        noise = (local_sum - rdm) / (kernel_size**2 - 1)
+        det = rdm > (noise * th)
+        pad = win + guard
+        det[:pad, :] = 0
+        det[-pad:, :] = 0
+        det[:, :pad] = 0
+        det[:, -pad:] = 0
         return det
 
     def _angle(self, sig):
@@ -204,116 +192,105 @@ class RDMapVisualizer(threading.Thread):
             pc.append([x, y, z, vel, snr])
         return np.array(pc) if pc else np.empty((0, 5))
 
-    # ===================== 加固版骨骼：脚贴地 + 生理约束 + 防浮空 =====================
-    def _generate_skeleton(self, cluster_points):
-        if len(cluster_points) < 8:
-            return self.skel_buf
+    def _generate_skeleton(self, cluster_points, tracker_obj):
+        # 【逻辑加固1】点数必须大于关节数(14)，否则视为噪点，不画人
+        if len(cluster_points) < 15:
+            return None
 
-        z_max = np.max(cluster_points[:, 2])
-        z_min = np.min(cluster_points[:, 2])
-        h_total = z_max - z_min
+        # 【逻辑加固2】位置必须服从点云分布，而不是 EKF
+        # 使用点云的实际质心作为 X, Y
+        obs_xy = np.mean(cluster_points[:, :2], axis=0)
+        base_x, base_y = obs_xy[0], obs_xy[1]
 
-        # 人体身高硬卡死，异常直接沿用旧骨骼
-        if not (1.2 < h_total < 2.0):
-            return self.skel_buf
+        # Z轴使用点云的底部
+        z_vals = cluster_points[:, 2]
+        base_z = np.percentile(z_vals, 10)
 
-        # 分层裁切
-        head_h = z_max - h_total * 0.05
-        neck_h = z_max - h_total * 0.18
-        shoulder_h = z_max - h_total * 0.28
-        hip_h = z_max - h_total * 0.55
-
-        body_cen = np.mean(cluster_points[:, :3], axis=0)
-
-        # 头部
-        head_pt = np.array([body_cen[0], body_cen[1], head_h])
-        neck_pt = np.array([body_cen[0], body_cen[1], neck_h])
-
-        # 肩膀固定合理宽度，不乱飘
-        shl_pt = np.array([body_cen[0] - 0.22, body_cen[1], shoulder_h])
-        shr_pt = np.array([body_cen[0] + 0.22, body_cen[1], shoulder_h])
-
-        # 手臂长度卡死
-        el_l = shl_pt + np.array([-0.32, 0, -0.3])
-        el_r = shr_pt + np.array([+0.32, 0, -0.3])
-        wr_l = el_l + np.array([-0.25, 0, -0.22])
-        wr_r = el_r + np.array([+0.25, 0, -0.22])
-
-        # 胯部
-        hip_l = np.array([body_cen[0] - 0.18, body_cen[1], hip_h])
-        hip_r = np.array([body_cen[0] + 0.18, body_cen[1], hip_h])
-
-        # 膝盖
-        kn_l = hip_l + np.array([0, 0, -0.45])
-        kn_r = hip_r + np.array([0, 0, -0.45])
-
-        # 【核心】脚踝强制钉死地面，永不浮空
-        an_l = np.array([kn_l[0], kn_l[1], self.GROUND_Z])
-        an_r = np.array([kn_r[0], kn_r[1], self.GROUND_Z])
+        # 固定高度
+        H = self.STD_HEIGHT
 
         skel_new = {
-            "head": head_pt,
-            "neck": neck_pt,
-            "shoulderL": shl_pt,
-            "shoulderR": shr_pt,
-            "elbowL": el_l,
-            "elbowR": el_r,
-            "wristL": wr_l,
-            "wristR": wr_r,
-            "hipL": hip_l,
-            "hipR": hip_r,
-            "kneeL": kn_l,
-            "kneeR": kn_r,
-            "ankleL": an_l,
-            "ankleR": an_r,
+            "head": np.array([base_x, base_y, base_z + H]),
+            "neck": np.array([base_x, base_y, base_z + H * 0.85]),
+            "shoulderL": np.array([base_x - 0.2, base_y, base_z + H * 0.80]),
+            "shoulderR": np.array([base_x + 0.2, base_y, base_z + H * 0.80]),
+            "hipL": np.array([base_x - 0.15, base_y, base_z + H * 0.50]),
+            "hipR": np.array([base_x + 0.15, base_y, base_z + H * 0.50]),
+            "ankleL": np.array([base_x - 0.1, base_y, base_z + 0.02]),
+            "ankleR": np.array([base_x + 0.1, base_y, base_z + 0.02]),
         }
+        skel_new["elbowL"] = skel_new["shoulderL"] + np.array([-0.05, 0, -0.3])
+        skel_new["wristL"] = skel_new["elbowL"] + np.array([-0.05, 0, -0.25])
+        skel_new["elbowR"] = skel_new["shoulderR"] + np.array([0.05, 0, -0.3])
+        skel_new["wristR"] = skel_new["elbowR"] + np.array([0.05, 0, -0.25])
+        skel_new["kneeL"] = skel_new["hipL"] + np.array([0, 0, -0.45])
+        skel_new["kneeR"] = skel_new["hipR"] + np.array([0, 0, -0.45])
 
-        # 时序低通防抖，杜绝闪跳
-        if self.skel_buf is None:
-            self.skel_buf = skel_new
+        # 平滑
+        alpha = 0.4  # 加快响应速度，因为位置现在跟随点云
+        if tracker_obj.skel_smooth is None:
+            tracker_obj.skel_smooth = skel_new
         else:
             for k in skel_new.keys():
-                self.skel_buf[k] = (1 - self.alpha) * self.skel_buf[
+                tracker_obj.skel_smooth[k] = (1 - alpha) * tracker_obj.skel_smooth[
                     k
-                ] + self.alpha * skel_new[k]
+                ] + alpha * skel_new[k]
 
-        return self.skel_buf
+        return tracker_obj.skel_smooth
 
     def _process_rd_map(self, adc_frame):
         adc = adc_frame.astype(np.complex64)
         adc = self._remove_dc_advanced(adc)
+
         range_data = np.fft.fft(adc * self.range_win[None, None, None, :], axis=-1)[
             ..., : self.numSamples // 2
         ]
-        doppler_data = np.fft.fft(
-            range_data * self.doppler_win[:, None, None, None], axis=0
-        )
+        range_data *= self.doppler_win[:, None, None, None]
+        doppler_data = np.fft.fft(range_data, axis=0)
         doppler_data = np.fft.fftshift(doppler_data, axes=0)
+
         rdm_mag = np.sum(np.abs(doppler_data), axis=(1, 2))
-        det_map = self._cfar(rdm_mag)
+        det_map = self._cfar_vectorized(rdm_mag)
         targets = np.argwhere(det_map)
+
         pc = self._get_cloud(doppler_data, rdm_mag, targets)
         pc = self._human_pc_filter(pc)
+
         det_centers, smpl_blocks = self._dbscan_cluster(pc)
+
         self.tracker.predict_all()
         self.tracker.associate(det_centers)
 
         final_pc = []
         self.skeletons = []
+
         for t in self.tracker.trackers:
             t_pos = t.get_pos()
             best_blk = None
             min_d = 999
+            best_idx = -1
+
+            # 寻找最近的簇
             for i, c in enumerate(det_centers):
                 d = np.linalg.norm(t_pos - c[:3])
                 if d < min_d:
                     min_d = d
                     best_blk = smpl_blocks[i]
+
+            # 【核心逻辑修复】
+            # 1. 必须匹配到簇 (min_d < 1.8)
+            # 2. 匹配到簇后，是否画骨架完全取决于 _generate_skeleton 内部的点数判断
             if best_blk is not None and min_d < 1.8:
                 final_pc.append(best_blk)
-                skel = self._generate_skeleton(best_blk)
+                skel = self._generate_skeleton(best_blk, t)
                 if skel:
                     self.skeletons.append(skel)
+                else:
+                    # 如果点数不够画骨架，清空该 ID 的缓存，防止下一帧画出旧位置
+                    t.skel_smooth = None
+            else:
+                # 如果没匹配到点云，清空骨架缓存，杜绝“幽灵人”
+                t.skel_smooth = None
 
         self.point_cloud = np.vstack(final_pc) if final_pc else np.empty((0, 5))
 
@@ -321,10 +298,10 @@ class RDMapVisualizer(threading.Thread):
         vmin, vmax = np.percentile(db, [5, 99.5])
         norm = ((db - vmin) / (vmax - vmin + 1e-6)).clip(0, 1) * 255
         color = cv2.applyColorMap(norm.astype(np.uint8), self.colormap)
-        color = cv2.resize(color, (1024, 512), interpolation=cv2.INTER_LINEAR)
-        return color
+        return cv2.resize(color, (1024, 512), interpolation=cv2.INTER_LINEAR)
 
     def run(self):
+        print("✅ 严格逻辑版: 点云中心定位 + 密度过滤 + 清除幽灵")
         while self.is_running.is_set():
             try:
                 frame = self._process_rd_map(self.data_queue.get(timeout=0.1))
@@ -333,8 +310,6 @@ class RDMapVisualizer(threading.Thread):
                     break
             except queue.Empty:
                 continue
-            except Exception as e:
-                print("err:", e)
         cv2.destroyAllWindows()
 
     def update(self, raw):
@@ -348,7 +323,7 @@ class RDMapVisualizer(threading.Thread):
         self.join()
 
 
-# ===================== 主程序：3D火柴人可视化 =====================
+# ===================== 主程序 =====================
 if __name__ == "__main__":
     import config as cfg
     import utils
@@ -411,35 +386,39 @@ if __name__ == "__main__":
         skels = vis.skeletons
 
         ax.cla()
-        ax.set(xlabel="X (m)", ylabel="Y (m)", zlabel="Z (m)")
+        ax.set(xlabel="X(m)", ylabel="Y(m)", zlabel="Z(m)")
         ax.set(xlim=(-4, 4), ylim=(0, 10), zlim=(0, 2.2))
         ax.set_box_aspect([1, 1, 1])
 
+        # 画点云
         if len(pc) > 0:
             ax.scatter(*pc[:, :3].T, c="blue", s=5, alpha=0.5)
 
+        # 画骨架
         for sk in skels:
             if not sk:
                 continue
+            joint_pts = np.array(list(sk.values()))
+            ax.scatter(
+                *joint_pts[:, :3].T,
+                c="red",
+                s=20,
+                zorder=5,
+            )
+
             for p1, p2 in bones:
                 if p1 in sk and p2 in sk:
+                    pt1, pt2 = sk[p1], sk[p2]
                     ax.plot(
-                        [sk[p1][0], sk[p2][0]],
-                        [sk[p1][1], sk[p2][1]],
-                        [sk[p1][2], sk[p2][2]],
+                        [pt1[0], pt2[0]],
+                        [pt1[1], pt2[1]],
+                        [pt1[2], pt2[2]],
                         "r-",
                         linewidth=2,
                     )
-            ax.scatter(sk["head"][0], sk["head"][1], sk["head"][2], c="red", s=25)
-            ax.scatter(
-                sk["ankleL"][0], sk["ankleL"][1], sk["ankleL"][2], c="green", s=20
-            )
-            ax.scatter(
-                sk["ankleR"][0], sk["ankleR"][1], sk["ankleR"][2], c="green", s=20
-            )
 
         fig.canvas.flush_events()
-        plt.pause(0.04)
+        plt.pause(0.001)
 
     vis.stop()
     plt.close(fig)

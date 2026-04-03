@@ -4,7 +4,7 @@ NUM_RX            = 4
 --
 START_FREQ        = 60
 ADC_START_TIME    = 6
-FREQ_SLOPE        = 30.012
+FREQ_SLOPE        = 60.012
 ADC_SAMPLES       = 256
 SAMPLE_RATE       = 4400
 RX_GAIN           = 30

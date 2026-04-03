@@ -15,7 +15,7 @@ from config import (
     ADCStartTime,
     WaveLength,
 )
-bin_path = "adc_data_Raw_0.bin"
+bin_path = "D:\\Projects\\py\\openMMW\\tests\\adc_data.bin"
 
 chirps_per_frame = numChirpLoops * numTx
 bytes_per_frame = chirps_per_frame * numRx * numADCSamples * 4
@@ -33,7 +33,8 @@ adc_data_5d = read_data(
     num_samples=numADCSamples,
 ).reshape(num_frames, numChirpLoops, numTx, numRx, numADCSamples)
 print(f"重组后的数据维度 (Frames, Loops, Txs, Rxs, Samples): {adc_data_5d.shape}")
-
+print(adc_data_5d[0][0][0][0])
+exit(0)
 # --- 3. 坐标轴计算 ---
 
 # 计算 Tc
