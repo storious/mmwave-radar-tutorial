@@ -1,3 +1,4 @@
+import colorsys  # 用于生成颜色
 import queue
 import threading
 
@@ -9,7 +10,24 @@ from scipy.optimize import linear_sum_assignment
 from sklearn.cluster import DBSCAN
 
 
-# ===================== 6维EKF跟踪核心 =====================
+# ===================== 区域管理器 =====================
+class ZoneManager:
+    def __init__(self, max_range=10.0, fov_deg=60.0):
+        self.max_range = max_range
+        self.fov = np.radians(fov_deg)
+        self.edge_dist_th = 8.0
+
+    def is_valid(self, x, y):
+        r = np.sqrt(x**2 + y**2)
+        theta = np.arctan2(x, y)
+        return (r < self.max_range) and (r > 0.3) and (np.abs(theta) < self.fov / 2)
+
+    def is_entry_point(self, x, y):
+        r = np.sqrt(x**2 + y**2)
+        return r > self.edge_dist_th
+
+
+# ===================== EKF & 跟踪器 =====================
 class EKFTarget:
     def __init__(self, obj_id, xyz, vel):
         self.id = obj_id
@@ -34,7 +52,7 @@ class EKFTarget:
         self.Q = np.eye(6) * 0.05
         self.R = np.eye(3) * 0.15
         self.lost_cnt = 0
-        self.max_lost = 10  # 缩短超时时间，更快消失
+        self.max_lost = 8
         self.skel_smooth = None
 
     def predict(self):
@@ -57,44 +75,62 @@ class EKFTarget:
 
 
 class MultiTracker:
-    def __init__(self):
+    def __init__(self, zone_manager):
         self.trackers = []
         self.next_id = 1
         self.max_dist = 2.0
+        self.zone = zone_manager
+        self.is_first_frame = True
 
     def associate(self, detections):
+        for t in self.trackers:
+            t.predict()
+
         if len(detections) == 0:
             for t in self.trackers:
                 t.lost_cnt += 1
             self.trackers = [t for t in self.trackers if t.lost_cnt < t.max_lost]
             return
+
         n_trk, n_det = len(self.trackers), len(detections)
         cost = np.zeros((n_trk, n_det))
         for i, t in enumerate(self.trackers):
             for j, d in enumerate(detections):
                 cost[i, j] = np.linalg.norm(t.get_pos() - d[:3])
+
         row, col = linear_sum_assignment(cost)
         match, used_det = set(), set()
+
         for i, j in zip(row, col):
             if cost[i, j] < self.max_dist:
                 match.add((i, j))
                 used_det.add(j)
-        for i, j in match:
-            self.trackers[i].update(detections[j][:3])
+                self.trackers[i].update(detections[j][:3])
+
         for j in range(n_det):
             if j not in used_det:
                 d = detections[j]
+                x, y = d[0], d[1]
+                if not self.zone.is_valid(x, y):
+                    continue
+                if not self.is_first_frame:
+                    if not self.zone.is_entry_point(x, y):
+                        continue
+
                 self.trackers.append(EKFTarget(self.next_id, d[:3], [d[3], 0, 0]))
                 self.next_id += 1
-        for i in range(n_trk):
-            if i not in [m[0] for m in match]:
-                self.trackers[i].lost_cnt += 1
-        self.trackers = [t for t in self.trackers if t.lost_cnt < t.max_lost]
 
-    def predict_all(self):
-        [t.predict() for t in self.trackers]
+        new_trackers = []
+        for t in self.trackers:
+            pos = t.get_pos()
+            if t.lost_cnt < t.max_lost and self.zone.is_valid(pos[0], pos[1]):
+                new_trackers.append(t)
+        self.trackers = new_trackers
+
+        self.is_first_frame = False
 
 
+# ===================== 可视化核心 =====================
 class RDMapVisualizer(threading.Thread):
     def __init__(self, radar_config, queue_maxsize=10):
         super().__init__()
@@ -111,12 +147,22 @@ class RDMapVisualizer(threading.Thread):
 
         self.colormap = cv2.COLORMAP_VIRIDIS
         self.point_cloud = np.empty((0, 5))
-        self.skeletons = []
+        self.skeletons = []  # 格式修改为: [(id, skel_dict), ...]
 
         self.range_win = np.hamming(self.numSamples).astype(np.float32)
         self.doppler_win = np.hamming(self.numChirps).astype(np.float32)
-        self.tracker = MultiTracker()
+
+        self.zone = ZoneManager(max_range=10.0, fov_deg=60.0)
+        self.tracker = MultiTracker(self.zone)
         self.STD_HEIGHT = 1.75
+
+    # 【新增】根据ID生成颜色
+    def _get_color(self, obj_id):
+        # 使用黄金比例生成色相，确保ID之间颜色差异大
+        hue = (obj_id * 0.618033988749895) % 1.0
+        # 使用HSV转RGB，设置高饱和度和高亮度，颜色更鲜艳
+        rgb = colorsys.hsv_to_rgb(hue, 0.9, 1.0)
+        return rgb
 
     def _remove_dc_advanced(self, data):
         real = np.real(data)
@@ -124,35 +170,6 @@ class RDMapVisualizer(threading.Thread):
         mr = np.mean(real, axis=-1, keepdims=True)
         mi = np.mean(imag, axis=-1, keepdims=True)
         return (real - mr) + 1j * (imag - mi)
-
-    def _human_pc_filter(self, pc):
-        if len(pc) == 0:
-            return pc
-        snr_ok = pc[:, 4] > 8.0
-        r = np.linalg.norm(pc[:, :3], axis=1)
-        range_ok = (r > 0.5) & (r < 12.0)
-        vel_ok = np.abs(pc[:, 3]) < 2.5
-        z_ok = (pc[:, 2] > 0.0) & (pc[:, 2] < 2.5)
-        return pc[snr_ok & range_ok & vel_ok & z_ok]
-
-    def _dbscan_cluster(self, pc):
-        if len(pc) < 5:
-            return [], []
-        cls = DBSCAN(eps=1.0, min_samples=4).fit(pc[:, :2])
-        labels = cls.labels_
-        det_centers, smpl_blocks = [], []
-        for lab in np.unique(labels):
-            if lab == -1:
-                continue
-            cluster_points = pc[labels == lab]
-            if np.mean(cluster_points[:, 2]) > 2.0:
-                continue
-            weights = cluster_points[:, 4]
-            center = np.average(cluster_points[:, :3], axis=0, weights=weights)
-            vel = np.mean(cluster_points[:, 3])
-            det_centers.append([center[0], center[1], center[2], vel])
-            smpl_blocks.append(cluster_points)
-        return det_centers, smpl_blocks
 
     def _cfar_vectorized(self, rdm, win=4, guard=2, th=3.8):
         kernel_size = 2 * (win + guard) + 1
@@ -173,7 +190,7 @@ class RDMapVisualizer(threading.Thread):
             a = np.clip(((np.argmax(np.abs(az)) - 64) / 64) * 35, -35, 35)
             e = np.clip(((np.argmax(np.abs(el)) - 32) / 32) * 15, 1, 15)
             return a, e
-        except Exception:
+        except:
             return 0.0, 3.0
 
     def _get_cloud(self, rdm_data, rdm_mag, targets):
@@ -192,21 +209,42 @@ class RDMapVisualizer(threading.Thread):
             pc.append([x, y, z, vel, snr])
         return np.array(pc) if pc else np.empty((0, 5))
 
+    def _human_pc_filter(self, pc):
+        if len(pc) == 0:
+            return pc
+        snr_ok = pc[:, 4] > 8.0
+        r = np.linalg.norm(pc[:, :3], axis=1)
+        range_ok = (r > 0.5) & (r < 12.0)
+        vel_ok = np.abs(pc[:, 3]) < 2.5
+        z_ok = (pc[:, 2] > 0.0) & (pc[:, 2] < 2.5)
+        return pc[snr_ok & range_ok & vel_ok & z_ok]
+
+    def _dbscan_cluster(self, pc):
+        if len(pc) < 8:
+            return [], []
+        cls = DBSCAN(eps=1.0, min_samples=4).fit(pc[:, :2])
+        labels = cls.labels_
+        det_centers, smpl_blocks = [], []
+        for lab in np.unique(labels):
+            if lab == -1:
+                continue
+            cluster_points = pc[labels == lab]
+            if np.mean(cluster_points[:, 2]) > 2.0:
+                continue
+            weights = cluster_points[:, 4]
+            center = np.average(cluster_points[:, :3], axis=0, weights=weights)
+            vel = np.mean(cluster_points[:, 3])
+            det_centers.append([center[0], center[1], center[2], vel])
+            smpl_blocks.append(cluster_points)
+        return det_centers, smpl_blocks
+
     def _generate_skeleton(self, cluster_points, tracker_obj):
-        # 【逻辑加固1】点数必须大于关节数(14)，否则视为噪点，不画人
         if len(cluster_points) < 15:
             return None
-
-        # 【逻辑加固2】位置必须服从点云分布，而不是 EKF
-        # 使用点云的实际质心作为 X, Y
         obs_xy = np.mean(cluster_points[:, :2], axis=0)
         base_x, base_y = obs_xy[0], obs_xy[1]
-
-        # Z轴使用点云的底部
         z_vals = cluster_points[:, 2]
         base_z = np.percentile(z_vals, 10)
-
-        # 固定高度
         H = self.STD_HEIGHT
 
         skel_new = {
@@ -226,8 +264,7 @@ class RDMapVisualizer(threading.Thread):
         skel_new["kneeL"] = skel_new["hipL"] + np.array([0, 0, -0.45])
         skel_new["kneeR"] = skel_new["hipR"] + np.array([0, 0, -0.45])
 
-        # 平滑
-        alpha = 0.4  # 加快响应速度，因为位置现在跟随点云
+        alpha = 0.4
         if tracker_obj.skel_smooth is None:
             tracker_obj.skel_smooth = skel_new
         else:
@@ -235,7 +272,6 @@ class RDMapVisualizer(threading.Thread):
                 tracker_obj.skel_smooth[k] = (1 - alpha) * tracker_obj.skel_smooth[
                     k
                 ] + alpha * skel_new[k]
-
         return tracker_obj.skel_smooth
 
     def _process_rd_map(self, adc_frame):
@@ -258,39 +294,35 @@ class RDMapVisualizer(threading.Thread):
 
         det_centers, smpl_blocks = self._dbscan_cluster(pc)
 
-        self.tracker.predict_all()
         self.tracker.associate(det_centers)
 
         final_pc = []
         self.skeletons = []
 
+        used_blocks = set()
+        potential_matches = []
         for t in self.tracker.trackers:
             t_pos = t.get_pos()
-            best_blk = None
-            min_d = 999
-            best_idx = -1
-
-            # 寻找最近的簇
             for i, c in enumerate(det_centers):
-                d = np.linalg.norm(t_pos - c[:3])
-                if d < min_d:
-                    min_d = d
-                    best_blk = smpl_blocks[i]
+                dist = np.linalg.norm(t_pos - c[:3])
+                if dist < 1.8:
+                    potential_matches.append((t.id, i, dist))
 
-            # 【核心逻辑修复】
-            # 1. 必须匹配到簇 (min_d < 1.8)
-            # 2. 匹配到簇后，是否画骨架完全取决于 _generate_skeleton 内部的点数判断
-            if best_blk is not None and min_d < 1.8:
-                final_pc.append(best_blk)
-                skel = self._generate_skeleton(best_blk, t)
+        potential_matches.sort(key=lambda x: x[2])
+
+        for t_id, b_idx, dist in potential_matches:
+            if b_idx in used_blocks:
+                continue
+
+            t_obj = next((t for t in self.tracker.trackers if t.id == t_id), None)
+            if t_obj:
+                blk = smpl_blocks[b_idx]
+                final_pc.append(blk)
+                skel = self._generate_skeleton(blk, t_obj)
                 if skel:
-                    self.skeletons.append(skel)
-                else:
-                    # 如果点数不够画骨架，清空该 ID 的缓存，防止下一帧画出旧位置
-                    t.skel_smooth = None
-            else:
-                # 如果没匹配到点云，清空骨架缓存，杜绝“幽灵人”
-                t.skel_smooth = None
+                    # 【修改】存储 ID 和骨架
+                    self.skeletons.append((t_id, skel))
+                used_blocks.add(b_idx)
 
         self.point_cloud = np.vstack(final_pc) if final_pc else np.empty((0, 5))
 
@@ -301,7 +333,7 @@ class RDMapVisualizer(threading.Thread):
         return cv2.resize(color, (1024, 512), interpolation=cv2.INTER_LINEAR)
 
     def run(self):
-        print("✅ 严格逻辑版: 点云中心定位 + 密度过滤 + 清除幽灵")
+        print("🚀 彩色ID版: 每个人拥有独特颜色")
         while self.is_running.is_set():
             try:
                 frame = self._process_rd_map(self.data_queue.get(timeout=0.1))
@@ -315,7 +347,7 @@ class RDMapVisualizer(threading.Thread):
     def update(self, raw):
         try:
             self.data_queue.put_nowait(raw)
-        except Exception:
+        except:
             pass
 
     def stop(self):
@@ -383,29 +415,42 @@ if __name__ == "__main__":
     for i in range(num_frames):
         vis.update(adc_data[i])
         pc = vis.point_cloud
-        skels = vis.skeletons
+        # 获取带ID的骨架列表
+        skels_with_id = vis.skeletons
 
         ax.cla()
         ax.set(xlabel="X(m)", ylabel="Y(m)", zlabel="Z(m)")
-        ax.set(xlim=(-4, 4), ylim=(0, 10), zlim=(0, 2.2))
+        ax.set(xlim=(-6, 6), ylim=(0, 12), zlim=(0, 2.5))
         ax.set_box_aspect([1, 1, 1])
 
-        # 画点云
-        if len(pc) > 0:
-            ax.scatter(*pc[:, :3].T, c="blue", s=5, alpha=0.5)
+        # 绘制有效区域边界
+        th = np.linspace(-np.deg2rad(30), np.deg2rad(30), 50)
+        ax.plot(10 * np.sin(th), 10 * np.cos(th), np.zeros_like(th), "g--", alpha=0.5)
 
-        # 画骨架
-        for sk in skels:
+        if len(pc) > 0:
+            ax.scatter(pc[:, 0], pc[:, 1], pc[:, 2], c="gray", s=5, alpha=0.2)
+
+        # 绘制骨架
+        for t_id, sk in skels_with_id:
             if not sk:
                 continue
+
+            # 1. 获取该ID对应的颜色
+            color = vis._get_color(t_id)
+
+            # 2. 提取关节点
             joint_pts = np.array(list(sk.values()))
+            # 画关节点
             ax.scatter(
-                *joint_pts[:, :3].T,
-                c="red",
-                s=20,
+                joint_pts[:, 0],
+                joint_pts[:, 1],
+                joint_pts[:, 2],
+                c=[color],
+                s=30,
                 zorder=5,
             )
 
+            # 3. 画骨骼线
             for p1, p2 in bones:
                 if p1 in sk and p2 in sk:
                     pt1, pt2 = sk[p1], sk[p2]
@@ -413,12 +458,24 @@ if __name__ == "__main__":
                         [pt1[0], pt2[0]],
                         [pt1[1], pt2[1]],
                         [pt1[2], pt2[2]],
-                        "r-",
+                        color=color,
                         linewidth=2,
                     )
 
+            # 4. 在头顶上方标记 ID
+            head_pos = sk["head"]
+            ax.text(
+                head_pos[0],
+                head_pos[1],
+                head_pos[2] + 0.2,
+                f"ID:{t_id}",
+                color=color,
+                fontsize=10,
+                ha="center",
+            )
+
         fig.canvas.flush_events()
-        plt.pause(0.001)
+        plt.pause(0.1)
 
     vis.stop()
     plt.close(fig)
