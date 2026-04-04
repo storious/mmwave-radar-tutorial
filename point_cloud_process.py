@@ -190,7 +190,7 @@ class RDMapVisualizer(threading.Thread):
             a = np.clip(((np.argmax(np.abs(az)) - 64) / 64) * 35, -35, 35)
             e = np.clip(((np.argmax(np.abs(el)) - 32) / 32) * 15, 1, 15)
             return a, e
-        except:
+        except Exception:
             return 0.0, 3.0
 
     def _get_cloud(self, rdm_data, rdm_mag, targets):
@@ -347,7 +347,7 @@ class RDMapVisualizer(threading.Thread):
     def update(self, raw):
         try:
             self.data_queue.put_nowait(raw)
-        except:
+        except Exception:
             pass
 
     def stop(self):
@@ -428,8 +428,7 @@ if __name__ == "__main__":
         ax.plot(10 * np.sin(th), 10 * np.cos(th), np.zeros_like(th), "g--", alpha=0.5)
 
         if len(pc) > 0:
-            ax.scatter(pc[:, 0], pc[:, 1], pc[:, 2], c="gray", s=5, alpha=0.2)
-
+            ax.scatter(*pc[:, :2], c="gray", s=5, alpha=0.2)
         # 绘制骨架
         for t_id, sk in skels_with_id:
             if not sk:
@@ -442,9 +441,7 @@ if __name__ == "__main__":
             joint_pts = np.array(list(sk.values()))
             # 画关节点
             ax.scatter(
-                joint_pts[:, 0],
-                joint_pts[:, 1],
-                joint_pts[:, 2],
+                *joint_pts[:, :3],
                 c=[color],
                 s=30,
                 zorder=5,

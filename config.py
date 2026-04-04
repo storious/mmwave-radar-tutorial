@@ -1,14 +1,17 @@
+# Install config
+Height = 0.5  # m
+Angle = 0  # degree
 
 # Static Config
-numTx= 3
-numRx= 4
+numTx = 3
+numRx = 4
 
 # Profile Config
-StartFreq  = 60e9 # Hz
+StartFreq = 60e9  # Hz
 numADCSamples = 256
-IdleTime = 7e-6 # s
-ADCStartTime = 6e-6 # s
-RampEndTime = 65e-6 # s
+IdleTime = 7e-6  # s
+ADCStartTime = 6e-6  # s
+RampEndTime = 65e-6  # s
 
 ADCSampleRate = 4.4e6
 FreqSlope = 30.012e12
@@ -21,7 +24,7 @@ numChirpLoops = 128
 Periodicity = 0.1  # s
 
 # other
-C = 3e8 # m/s
+C = 3e8  # m/s
 WaveLength = C / StartFreq
 
 Tc = Periodicity / (numChirpLoops * numTx)
