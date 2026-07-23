@@ -1,5 +1,6 @@
 *.out
 *.o
+*.pcm
 .cache/
 .xmake/
 build/

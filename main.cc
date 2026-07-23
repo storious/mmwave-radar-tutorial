@@ -1,58 +1,49 @@
-#include "adc.cc"
+import adc;
+import config;
+import std;
 
-#include <fstream>
-#include <iostream>
+using namespace mmwave;
 
-auto main(int argc, char *argv[]) -> int {
-  // 1. open adc file (*.bin)
-  std::ifstream file(BinPath, std::ios::binary | std::ios::ate);
-  if (!file) {
-    std::cerr << "Error: can't open file" << BinPath << std::endl;
+auto main() -> int {
+
+  FrameReader reader;
+
+  reader.add_file(config::BinPath);
+
+  auto open_result = reader.open();
+
+  if (!open_result) {
+    std::println("Failed to open file");
     return 1;
   }
 
-  // 2. get file size
-  // TODO: add spatial read file
-  std::streamsize total_bytes = file.tellg();
-  file.seekg(0, std::ios::beg);
+  auto frame_result = reader.read_frame();
 
-  size_t bytes_per_frame = BytesPerFrame;
-
-  // 3. compute number of frams
-  size_t num_frames =
-      total_bytes / static_cast<std::streamsize>(bytes_per_frame);
-
-  if (num_frames == 0) {
-    std::cerr << "Error: File size (" << total_bytes << " bytes)，"
-              << "not enough data (" << bytes_per_frame << " bytes)"
-              << std::endl;
+  if (not frame_result) {
+    std::println("Failed to read frame");
     return 1;
   }
 
-  std::cout << "Frames" << num_frames << std::endl;
+  ADCFrame frame = std::move(*frame_result);
 
-  std::cout << "Read and process first frame" << std::endl;
+  auto view_result = FrameProcessor::make_view(frame);
 
-  // bytes_per_frame / 2 = number of int16s
-  std::vector<int16_t> raw_frame_int16(bytes_per_frame / 2);
-
-  if (!file.read(reinterpret_cast<char *>(raw_frame_int16.data()),
-                 bytes_per_frame)) {
-    std::cerr << "Error: read first frame" << std::endl;
+  if (not view_result) {
+    std::println("Invalid frame size");
     return 1;
   }
 
-  ADCData adc_data = organize_adc(raw_frame_int16);
-  LVDS frames(adc_data.data());
+  auto view = *view_result;
 
-  std::cout << "data dimension: [Chirps=" << ChirpsPerFrame
-            << ", Rx=" << NumRx << ", Samples=" << NumADCSamples << "]"
-            << std::endl;
+  FrameProcessor::print_info(view);
 
-  std::cout << "\nSample data (Chirp 0, Rx 0, Samples 0-4):" << std::endl;
-  for (int i = 0; i < 5 && i < NumADCSamples; ++i) {
-    ComplexI16 val = frames[0, 0, i];
-    std::cout << "  Sample " << i << ": " << val << std::endl;
+  std::println("Sample data (Chirp 0, Rx 0, Samples 0-4):");
+
+  for (std::size_t i = 0; i < 5; ++i) {
+    auto value = view[0, 0, i];
+
+    std::println("sample {}: {}+{}j", i, value.real(), value.imag());
   }
+
   return 0;
 }

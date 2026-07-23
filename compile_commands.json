@@ -1,96 +1,16 @@
 [
-{
-  "directory": "/home/wjie/projects/cpp/mmwave-radar-tutorial",
-  "arguments": ["/usr/sbin/clang++", "-c", "-Qunused-arguments", "-m64", "-fvisibility=hidden", "-fvisibility-inlines-hidden", "-O3", "-std=c++23", "-stdlib=libc++", "-DNDEBUG", "-DROOT", "-x", "c++-module", "--precompile", "-Wno-include-angled-in-module-purview", "-Wno-reserved-module-identifier", "-Wno-deprecated-declarations", "-o", "build/.gens/demo/linux/x86_64/release/rules/bmi/cache/interfaces/c549fad04d28cd97/std.pcm", "/usr/share/libc++/v1/std.cppm"],
-  "file": "/usr/share/libc++/v1/std.cppm"
-},
-{
-  "directory": "/home/wjie/projects/cpp/mmwave-radar-tutorial",
-  "arguments": ["/usr/sbin/clang++", "-c", "-Qunused-arguments", "-m64", "-fvisibility=hidden", "-fvisibility-inlines-hidden", "-O3", "-std=c++23", "-stdlib=libc++", "-DNDEBUG", "-DROOT", "-x", "c++-module", "--precompile", "-o", "build/.gens/demo/linux/x86_64/release/rules/bmi/cache/interfaces/6eb74498c5096517/mmwave.common.error.pcm", "src/mmwave/common/error.ccm"],
-  "file": "src/mmwave/common/error.ccm"
-},
-{
-  "directory": "/home/wjie/projects/cpp/mmwave-radar-tutorial",
-  "arguments": ["/usr/sbin/clang++", "-c", "-Qunused-arguments", "-m64", "-fvisibility=hidden", "-fvisibility-inlines-hidden", "-O3", "-std=c++23", "-stdlib=libc++", "-DNDEBUG", "-fmodule-file=std=build/.gens/demo/linux/x86_64/release/rules/bmi/cache/interfaces/c549fad04d28cd97/std.pcm", "-DROOT", "-x", "c++-module", "--precompile", "-o", "build/.gens/demo/linux/x86_64/release/rules/bmi/cache/interfaces/bbbf6832dd9d057b/mmwave.radar.types.pcm", "src/mmwave/radar/types.ccm"],
-  "file": "src/mmwave/radar/types.ccm"
-},
-{
-  "directory": "/home/wjie/projects/cpp/mmwave-radar-tutorial",
-  "arguments": ["/usr/sbin/clang++", "-c", "-Qunused-arguments", "-m64", "-fvisibility=hidden", "-fvisibility-inlines-hidden", "-O3", "-std=c++23", "-stdlib=libc++", "-DNDEBUG", "-fmodule-file=mmwave.radar.types=build/.gens/demo/linux/x86_64/release/rules/bmi/cache/interfaces/bbbf6832dd9d057b/mmwave.radar.types.pcm", "-fmodule-file=std=build/.gens/demo/linux/x86_64/release/rules/bmi/cache/interfaces/c549fad04d28cd97/std.pcm", "-DROOT", "-x", "c++-module", "--precompile", "-o", "build/.gens/demo/linux/x86_64/release/rules/bmi/cache/interfaces/e61b31b003eecb26/mmwave.radar.fft.pcm", "src/mmwave/radar/fft.ccm"],
-  "file": "src/mmwave/radar/fft.ccm"
-},
-{
-  "directory": "/home/wjie/projects/cpp/mmwave-radar-tutorial",
-  "arguments": ["/usr/sbin/clang++", "-c", "-Qunused-arguments", "-m64", "-fvisibility=hidden", "-fvisibility-inlines-hidden", "-O3", "-std=c++23", "-stdlib=libc++", "-DNDEBUG", "-fmodule-file=mmwave.common.error=build/.gens/demo/linux/x86_64/release/rules/bmi/cache/interfaces/6eb74498c5096517/mmwave.common.error.pcm", "-fmodule-file=mmwave.radar.types=build/.gens/demo/linux/x86_64/release/rules/bmi/cache/interfaces/bbbf6832dd9d057b/mmwave.radar.types.pcm", "-fmodule-file=std=build/.gens/demo/linux/x86_64/release/rules/bmi/cache/interfaces/c549fad04d28cd97/std.pcm", "-DROOT", "-x", "c++-module", "--precompile", "-o", "build/.gens/demo/linux/x86_64/release/rules/bmi/cache/interfaces/7f710af7495d3675/mmwave.radar.adc_proc.pcm", "src/mmwave/radar/adc_proc.ccm"],
-  "file": "src/mmwave/radar/adc_proc.ccm"
-},
-{
-  "directory": "/home/wjie/projects/cpp/mmwave-radar-tutorial",
-  "arguments": ["/usr/sbin/clang++", "-c", "-Qunused-arguments", "-m64", "-fvisibility=hidden", "-fvisibility-inlines-hidden", "-O3", "-std=c++23", "-stdlib=libc++", "-DNDEBUG", "-fmodule-file=mmwave.common.error=build/.gens/demo/linux/x86_64/release/rules/bmi/cache/interfaces/6eb74498c5096517/mmwave.common.error.pcm", "-fmodule-file=mmwave.radar.adc_proc=build/.gens/demo/linux/x86_64/release/rules/bmi/cache/interfaces/7f710af7495d3675/mmwave.radar.adc_proc.pcm", "-fmodule-file=mmwave.radar.types=build/.gens/demo/linux/x86_64/release/rules/bmi/cache/interfaces/bbbf6832dd9d057b/mmwave.radar.types.pcm", "-fmodule-file=std=build/.gens/demo/linux/x86_64/release/rules/bmi/cache/interfaces/c549fad04d28cd97/std.pcm", "-DROOT", "-x", "c++-module", "--precompile", "-o", "build/.gens/demo/linux/x86_64/release/rules/bmi/cache/interfaces/0e6e9780462d541f/mmwave.radar.frame_processor.pcm", "src/mmwave/radar/frame_proc.ccm"],
-  "file": "src/mmwave/radar/frame_proc.ccm"
-},
-{
-  "directory": "/home/wjie/projects/cpp/mmwave-radar-tutorial",
-  "arguments": ["/usr/sbin/clang++", "-c", "-Qunused-arguments", "-m64", "-fvisibility=hidden", "-fvisibility-inlines-hidden", "-O3", "-DROOT", "-std=c++23", "-stdlib=libc++", "--precompile", "-DNDEBUG", "-x", "c++-module", "--precompile", "-Wno-include-angled-in-module-purview", "-Wno-reserved-module-identifier", "-Wno-deprecated-declarations", "-o", "build/.gens/mmwave/linux/x86_64/release/rules/bmi/cache/interfaces/c549fad04d28cd97/std.pcm", "/usr/share/libc++/v1/std.cppm"],
-  "file": "/usr/share/libc++/v1/std.cppm"
-},
-{
-  "directory": "/home/wjie/projects/cpp/mmwave-radar-tutorial",
-  "arguments": ["/usr/sbin/clang++", "-c", "-Qunused-arguments", "-m64", "-fvisibility=hidden", "-fvisibility-inlines-hidden", "-O3", "-DROOT", "-std=c++23", "-stdlib=libc++", "--precompile", "-DNDEBUG", "-x", "c++-module", "--precompile", "-o", "build/.gens/mmwave/linux/x86_64/release/rules/bmi/cache/interfaces/6eb74498c5096517/mmwave.common.error.pcm", "src/mmwave/common/error.ccm"],
-  "file": "src/mmwave/common/error.ccm"
-},
-{
-  "directory": "/home/wjie/projects/cpp/mmwave-radar-tutorial",
-  "arguments": ["/usr/sbin/clang++", "-c", "-Qunused-arguments", "-m64", "-fvisibility=hidden", "-fvisibility-inlines-hidden", "-O3", "-DROOT", "-std=c++23", "-stdlib=libc++", "--precompile", "-DNDEBUG", "-fmodule-file=std=build/.gens/mmwave/linux/x86_64/release/rules/bmi/cache/interfaces/c549fad04d28cd97/std.pcm", "-x", "c++-module", "--precompile", "-o", "build/.gens/mmwave/linux/x86_64/release/rules/bmi/cache/interfaces/bbbf6832dd9d057b/mmwave.radar.types.pcm", "src/mmwave/radar/types.ccm"],
-  "file": "src/mmwave/radar/types.ccm"
-},
-{
-  "directory": "/home/wjie/projects/cpp/mmwave-radar-tutorial",
-  "arguments": ["/usr/sbin/clang++", "-c", "-Qunused-arguments", "-m64", "-fvisibility=hidden", "-fvisibility-inlines-hidden", "-O3", "-DROOT", "-std=c++23", "-stdlib=libc++", "--precompile", "-DNDEBUG", "-fmodule-file=mmwave.common.error=build/.gens/mmwave/linux/x86_64/release/rules/bmi/cache/interfaces/6eb74498c5096517/mmwave.common.error.pcm", "-fmodule-file=mmwave.radar.types=build/.gens/mmwave/linux/x86_64/release/rules/bmi/cache/interfaces/bbbf6832dd9d057b/mmwave.radar.types.pcm", "-fmodule-file=std=build/.gens/mmwave/linux/x86_64/release/rules/bmi/cache/interfaces/c549fad04d28cd97/std.pcm", "-x", "c++-module", "--precompile", "-o", "build/.gens/mmwave/linux/x86_64/release/rules/bmi/cache/interfaces/7f710af7495d3675/mmwave.radar.adc_proc.pcm", "src/mmwave/radar/adc_proc.ccm"],
-  "file": "src/mmwave/radar/adc_proc.ccm"
-},
-{
-  "directory": "/home/wjie/projects/cpp/mmwave-radar-tutorial",
-  "arguments": ["/usr/sbin/clang++", "-c", "-Qunused-arguments", "-m64", "-fvisibility=hidden", "-fvisibility-inlines-hidden", "-O3", "-DROOT", "-std=c++23", "-stdlib=libc++", "--precompile", "-DNDEBUG", "-fmodule-file=mmwave.radar.types=build/.gens/mmwave/linux/x86_64/release/rules/bmi/cache/interfaces/bbbf6832dd9d057b/mmwave.radar.types.pcm", "-fmodule-file=std=build/.gens/mmwave/linux/x86_64/release/rules/bmi/cache/interfaces/c549fad04d28cd97/std.pcm", "-x", "c++-module", "--precompile", "-o", "build/.gens/mmwave/linux/x86_64/release/rules/bmi/cache/interfaces/e61b31b003eecb26/mmwave.radar.fft.pcm", "src/mmwave/radar/fft.ccm"],
-  "file": "src/mmwave/radar/fft.ccm"
-},
-{
-  "directory": "/home/wjie/projects/cpp/mmwave-radar-tutorial",
-  "arguments": ["/usr/sbin/clang++", "-c", "-Qunused-arguments", "-m64", "-fvisibility=hidden", "-fvisibility-inlines-hidden", "-O3", "-DROOT", "-std=c++23", "-stdlib=libc++", "--precompile", "-DNDEBUG", "-fmodule-file=mmwave.common.error=build/.gens/mmwave/linux/x86_64/release/rules/bmi/cache/interfaces/6eb74498c5096517/mmwave.common.error.pcm", "-fmodule-file=mmwave.radar.adc_proc=build/.gens/mmwave/linux/x86_64/release/rules/bmi/cache/interfaces/7f710af7495d3675/mmwave.radar.adc_proc.pcm", "-fmodule-file=mmwave.radar.types=build/.gens/mmwave/linux/x86_64/release/rules/bmi/cache/interfaces/bbbf6832dd9d057b/mmwave.radar.types.pcm", "-fmodule-file=std=build/.gens/mmwave/linux/x86_64/release/rules/bmi/cache/interfaces/c549fad04d28cd97/std.pcm", "-x", "c++-module", "--precompile", "-o", "build/.gens/mmwave/linux/x86_64/release/rules/bmi/cache/interfaces/0e6e9780462d541f/mmwave.radar.frame_processor.pcm", "src/mmwave/radar/frame_proc.ccm"],
-  "file": "src/mmwave/radar/frame_proc.ccm"
-},
-{
-  "directory": "/home/wjie/projects/cpp/mmwave-radar-tutorial",
-  "arguments": ["/usr/sbin/clang++", "-c", "-Qunused-arguments", "-m64", "-fvisibility=hidden", "-fvisibility-inlines-hidden", "-O3", "-DROOT", "-std=c++23", "-stdlib=libc++", "--precompile", "-DNDEBUG", "-Wno-include-angled-in-module-purview", "-Wno-reserved-module-identifier", "-Wno-deprecated-declarations", "-o", "build/.objs/mmwave/linux/x86_64/release/usr/share/libc++/v1/std.cppm.o", "/usr/share/libc++/v1/std.cppm"],
-  "file": "/usr/share/libc++/v1/std.cppm"
-},
-{
-  "directory": "/home/wjie/projects/cpp/mmwave-radar-tutorial",
-  "arguments": ["/usr/sbin/clang++", "-c", "-Qunused-arguments", "-m64", "-fvisibility=hidden", "-fvisibility-inlines-hidden", "-O3", "-DROOT", "-std=c++23", "-stdlib=libc++", "--precompile", "-DNDEBUG", "-o", "build/.objs/mmwave/linux/x86_64/release/src/mmwave/common/error.ccm.o", "src/mmwave/common/error.ccm"],
-  "file": "src/mmwave/common/error.ccm"
-},
-{
-  "directory": "/home/wjie/projects/cpp/mmwave-radar-tutorial",
-  "arguments": ["/usr/sbin/clang++", "-c", "-Qunused-arguments", "-m64", "-fvisibility=hidden", "-fvisibility-inlines-hidden", "-O3", "-DROOT", "-std=c++23", "-stdlib=libc++", "--precompile", "-DNDEBUG", "-fmodule-file=std=build/.gens/mmwave/linux/x86_64/release/rules/bmi/cache/interfaces/c549fad04d28cd97/std.pcm", "-o", "build/.objs/mmwave/linux/x86_64/release/src/mmwave/radar/types.ccm.o", "src/mmwave/radar/types.ccm"],
-  "file": "src/mmwave/radar/types.ccm"
-},
-{
-  "directory": "/home/wjie/projects/cpp/mmwave-radar-tutorial",
-  "arguments": ["/usr/sbin/clang++", "-c", "-Qunused-arguments", "-m64", "-fvisibility=hidden", "-fvisibility-inlines-hidden", "-O3", "-DROOT", "-std=c++23", "-stdlib=libc++", "--precompile", "-DNDEBUG", "-fmodule-file=mmwave.common.error=build/.gens/mmwave/linux/x86_64/release/rules/bmi/cache/interfaces/6eb74498c5096517/mmwave.common.error.pcm", "-fmodule-file=mmwave.radar.types=build/.gens/mmwave/linux/x86_64/release/rules/bmi/cache/interfaces/bbbf6832dd9d057b/mmwave.radar.types.pcm", "-fmodule-file=std=build/.gens/mmwave/linux/x86_64/release/rules/bmi/cache/interfaces/c549fad04d28cd97/std.pcm", "-o", "build/.objs/mmwave/linux/x86_64/release/src/mmwave/radar/adc_proc.ccm.o", "src/mmwave/radar/adc_proc.ccm"],
-  "file": "src/mmwave/radar/adc_proc.ccm"
-},
-{
-  "directory": "/home/wjie/projects/cpp/mmwave-radar-tutorial",
-  "arguments": ["/usr/sbin/clang++", "-c", "-Qunused-arguments", "-m64", "-fvisibility=hidden", "-fvisibility-inlines-hidden", "-O3", "-DROOT", "-std=c++23", "-stdlib=libc++", "--precompile", "-DNDEBUG", "-fmodule-file=mmwave.radar.types=build/.gens/mmwave/linux/x86_64/release/rules/bmi/cache/interfaces/bbbf6832dd9d057b/mmwave.radar.types.pcm", "-fmodule-file=std=build/.gens/mmwave/linux/x86_64/release/rules/bmi/cache/interfaces/c549fad04d28cd97/std.pcm", "-o", "build/.objs/mmwave/linux/x86_64/release/src/mmwave/radar/fft.ccm.o", "src/mmwave/radar/fft.ccm"],
-  "file": "src/mmwave/radar/fft.ccm"
-},
-{
-  "directory": "/home/wjie/projects/cpp/mmwave-radar-tutorial",
-  "arguments": ["/usr/sbin/clang++", "-c", "-Qunused-arguments", "-m64", "-fvisibility=hidden", "-fvisibility-inlines-hidden", "-O3", "-DROOT", "-std=c++23", "-stdlib=libc++", "--precompile", "-DNDEBUG", "-fmodule-file=mmwave.common.error=build/.gens/mmwave/linux/x86_64/release/rules/bmi/cache/interfaces/6eb74498c5096517/mmwave.common.error.pcm", "-fmodule-file=mmwave.radar.adc_proc=build/.gens/mmwave/linux/x86_64/release/rules/bmi/cache/interfaces/7f710af7495d3675/mmwave.radar.adc_proc.pcm", "-fmodule-file=mmwave.radar.types=build/.gens/mmwave/linux/x86_64/release/rules/bmi/cache/interfaces/bbbf6832dd9d057b/mmwave.radar.types.pcm", "-fmodule-file=std=build/.gens/mmwave/linux/x86_64/release/rules/bmi/cache/interfaces/c549fad04d28cd97/std.pcm", "-o", "build/.objs/mmwave/linux/x86_64/release/src/mmwave/radar/frame_proc.ccm.o", "src/mmwave/radar/frame_proc.ccm"],
-  "file": "src/mmwave/radar/frame_proc.ccm"
-},
-{
-  "directory": "/home/wjie/projects/cpp/mmwave-radar-tutorial",
-  "arguments": ["/usr/sbin/clang++", "-c", "-Qunused-arguments", "-m64", "-fvisibility=hidden", "-fvisibility-inlines-hidden", "-O3", "-DROOT", "-std=c++23", "-stdlib=libc++", "-DNDEBUG", "-fmodule-file=mmwave.radar.frame_processor=build/.gens/demo/linux/x86_64/release/rules/bmi/cache/interfaces/0e6e9780462d541f/mmwave.radar.frame_processor.pcm", "-fmodule-file=mmwave.common.error=build/.gens/demo/linux/x86_64/release/rules/bmi/cache/interfaces/6eb74498c5096517/mmwave.common.error.pcm", "-fmodule-file=mmwave.radar.adc_proc=build/.gens/demo/linux/x86_64/release/rules/bmi/cache/interfaces/7f710af7495d3675/mmwave.radar.adc_proc.pcm", "-fmodule-file=mmwave.radar.types=build/.gens/demo/linux/x86_64/release/rules/bmi/cache/interfaces/bbbf6832dd9d057b/mmwave.radar.types.pcm", "-fmodule-file=std=build/.gens/demo/linux/x86_64/release/rules/bmi/cache/interfaces/c549fad04d28cd97/std.pcm", "-o", "build/.objs/demo/linux/x86_64/release/samples/demo.cc.o", "samples/demo.cc"],
-  "file": "samples/demo.cc"
-}]
+  {
+    "file": "main.cc",
+    "arguments": [
+      "/usr/sbin/clang++",
+      "-std=c++23",
+      "-stdlib=libc++",
+      "-fprebuilt-module-path=.",
+      "main.cc",
+      "-o",
+      "adc.out"
+    ],
+    "directory": "/home/wjie/projects/cpp/mmwave-radar-tutorial",
+    "output": "adc.out"
+  }
+]

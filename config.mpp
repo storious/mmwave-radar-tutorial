@@ -1,0 +1,25 @@
+module;
+#include <cstddef>
+#include <string_view>
+
+export module config;
+
+export namespace mmwave::config {
+
+// ==========================================
+// Config
+// ============ ==============================
+inline constexpr std::string_view BinPath = "adc_data.bin";
+inline constexpr int NumADCSamples = 128;
+inline constexpr int NumTx = {1};
+inline constexpr int NumRx = {4};
+inline constexpr int NumChirpsLoop = 2;
+inline constexpr double periodicity = 0.01; // seconds
+
+inline constexpr int ChirpsPerFrame = NumChirpsLoop * NumTx;
+inline constexpr std::size_t FPS = 10;
+
+// Chirps * Rx * Samples * 2(IQ) * 2(bytes/int16)
+inline constexpr std::size_t BytesPerFrame =
+    static_cast<std::size_t>(ChirpsPerFrame) * NumRx * NumADCSamples * 4;
+} // namespace mmwave::config
