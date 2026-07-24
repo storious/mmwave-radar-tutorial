@@ -1,0 +1,5 @@
+module;
+
+export module mmwave.common;
+
+export import :error;

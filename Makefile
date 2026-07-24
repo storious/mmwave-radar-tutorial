@@ -9,6 +9,9 @@ MODULES=$(patsubst %.mpp,%.pcm,$(wildcard *.mpp)) \
 
 OBJECTS=$(patsubst %.ccm,%.o,$(wildcard *.ccm))
 
+.PHONY: build
+build:
+	${MAKE} -C ./src/ 
 
 run: std.pcm $(MODULES) $(OBJECTS)
 	$(CXX) $(CXXFLAGS) \

@@ -1,4 +1,6 @@
-export module mmwave.common.error;
+module;
+
+export module mmwave.common:error;
 
 export namespace mmwave::common {
 

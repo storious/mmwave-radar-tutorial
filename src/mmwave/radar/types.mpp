@@ -1,6 +1,11 @@
-export module mmwave.radar.types;
+module;
 
-import std;
+#include <complex>
+#include <cstddef>
+#include <mdspan>
+#include <vector>
+
+export module mmwave.radar:types;
 
 export namespace mmwave::radar {
 

@@ -1,9 +1,18 @@
-export module mmwave.radar.frame_processor;
+module;
 
-import std;
-import mmwave.radar.types;
-import mmwave.radar.adc_proc;
-import mmwave.common.error;
+#include <algorithm>
+#include <cstddef>
+#include <cstdint>
+#include <expected>
+#include <fstream>
+#include <print>
+#include <string>
+
+export module mmwave.radar:frame;
+
+import :types;
+import :adc;
+import mmwave.common;
 
 export namespace mmwave::radar {
 

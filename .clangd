@@ -3,3 +3,4 @@ CompileFlags:
     - "-std=c++23"
     - "-stdlib=libc++"
     - "-I /usr/share/libc++/v1/"
+    - "-fprebuilt-module-path=build/mmwave/modules"

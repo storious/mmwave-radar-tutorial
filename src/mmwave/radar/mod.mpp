@@ -1,0 +1,6 @@
+module;
+
+export module mmwave.radar;
+
+export import :adc;
+export import :frame;

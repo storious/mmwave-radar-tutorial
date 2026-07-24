@@ -1,8 +1,12 @@
-export module mmwave.radar.adc_proc;
+module;
 
-import std;
-import mmwave.radar.types;
-import mmwave.common.error;
+#include <cstddef>
+#include <expected>
+
+export module mmwave.radar:adc;
+
+import :types;
+import mmwave.common;
 
 export namespace mmwave::radar {
 

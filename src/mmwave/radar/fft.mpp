@@ -1,7 +1,8 @@
-export module mmwave.radar.fft;
+module;
 
-import std;
-import mmwave.radar.types;
+export module mmwave.radar:fft;
+
+import :types;
 
 export namespace mmwave::radar {
 
