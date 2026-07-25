@@ -12,12 +12,15 @@ MODULE_PREFIX=mmwave.radar
 
 .PHONY: all
 
-all: $(MODULE_DIR)/${MODULE_PREFIX}.pcm
+all: $(MODULE_DIR)/${MODULE_PREFIX}.pcm \
+			$(OBJ_DIR)/${MODULE_PREFIX}-frame.o \
+    	$(OBJ_DIR)/${MODULE_PREFIX}-adc.o \
+			$(OBJ_DIR)/${MODULE_PREFIX}-fft.o
 
 
-$(MODULE_DIR)/${MODULE_PREFIX}.pcm: \
+
+$(MODULE_DIR)/${MODULE_PREFIX}.pcm: mod.mpp \
     $(MODULE_DIR)/${MODULE_PREFIX}-frame.pcm \
-    $(OBJ_DIR)/${MODULE_PREFIX}-frame.o
 
 	@mkdir -p $(MODULE_DIR)
 
@@ -28,10 +31,9 @@ $(MODULE_DIR)/${MODULE_PREFIX}.pcm: \
 		-o $@
 
 
-$(MODULE_DIR)/${MODULE_PREFIX}-frame.pcm: \
+$(MODULE_DIR)/${MODULE_PREFIX}-frame.pcm: frame.ccm \
     $(MODULE_DIR)/${MODULE_PREFIX}-types.pcm \
     $(MODULE_DIR)/${MODULE_PREFIX}-adc.pcm \
-    $(OBJ_DIR)/${MODULE_PREFIX}-adc.o
 
 	@mkdir -p $(MODULE_DIR)
 
@@ -42,7 +44,8 @@ $(MODULE_DIR)/${MODULE_PREFIX}-frame.pcm: \
 		-o $@
 
 
-$(MODULE_DIR)/${MODULE_PREFIX}-adc.pcm: adc.ccm $(MODULE_DIR)/${MODULE_PREFIX}-fft.pcm
+$(MODULE_DIR)/${MODULE_PREFIX}-adc.pcm: adc.ccm \
+		$(MODULE_DIR)/${MODULE_PREFIX}-fft.pcm \
 
 	$(CXX) $(CXXFLAGS) \
 		$(MODULE_PATH) \

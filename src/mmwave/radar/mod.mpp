@@ -4,3 +4,7 @@ export module mmwave.radar;
 
 export import :adc;
 export import :frame;
+export import :types;
+export import :fft;
+
+

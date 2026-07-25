@@ -15,7 +15,7 @@ MODULE_PREFIX=mmwave.common
 all: $(MODULE_DIR)/${MODULE_PREFIX}.pcm
 
 
-$(MODULE_DIR)/${MODULE_PREFIX}.pcm: \
+$(MODULE_DIR)/${MODULE_PREFIX}.pcm: mod.mpp \
     $(MODULE_DIR)/${MODULE_PREFIX}-error.pcm
 
 	@mkdir -p $(MODULE_DIR)
