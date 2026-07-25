@@ -39,7 +39,7 @@ auto main() -> int {
 
   std::println("Sample data (Chirp 0, Rx 0, Samples 0-4):");
 
-  for (std::size_t i = 0; i < 5; ++i) {
+  for (std::size_t i : std::views::iota(0, 5)) {
     auto value = view[0, 0, i];
 
     std::println("sample {}: {}+{}j", i, value.real(), value.imag());
