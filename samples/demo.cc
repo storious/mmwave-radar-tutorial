@@ -1,6 +1,7 @@
-import std;
-import mmwave.radar.frame_processor;
-import mmwave.radar.types;
+#include <string>
+#include <print>
+
+import mmwave.radar;
 
 using namespace mmwave::radar;
 
