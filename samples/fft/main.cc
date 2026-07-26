@@ -1,9 +1,9 @@
-#include <iostream>
 
 extern "C" {
 #include "fftw3.h"
 }
 
+#include <print>
 import mmwave.radar;
 
 using namespace mmwave::radar;
@@ -18,7 +18,7 @@ int main() {
       static_cast<fftw_complex *>(fftw_malloc(sizeof(fftw_complex) * N));
 
   if (!input || !output) {
-    std::cerr << "alloc failed\n";
+    std::println("alloc failed");
     return 1;
   }
 
@@ -29,7 +29,7 @@ int main() {
   auto plan = fft.create_1d_plan(N, input, output);
 
   if (!plan) {
-    std::cerr << "create fft plan failed\n";
+    std::println("create fft plan failed");
     return 1;
   }
 
@@ -37,6 +37,5 @@ int main() {
 
   fftw_free(input);
   fftw_free(output);
-
-  std::cout << "FFT OK\n";
+  std::println("FFT OK");
 }
