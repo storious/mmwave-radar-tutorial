@@ -8,15 +8,15 @@ OBJ_DIR=$(BUILD_DIR)/obj
 MODULE_PATH=-fprebuilt-module-path=$(MODULE_DIR)
 
 # NOTE
-MODULE_PREFIX=mmwave.common
+MODULE=mmwave.common
 
 .PHONY: all
 
-all: $(MODULE_DIR)/${MODULE_PREFIX}.pcm
+all: $(MODULE_DIR)/${MODULE}.pcm
 
 
-$(MODULE_DIR)/${MODULE_PREFIX}.pcm: mod.mpp \
-    $(MODULE_DIR)/${MODULE_PREFIX}-error.pcm
+$(MODULE_DIR)/${MODULE}.pcm: mod.mpp \
+    $(MODULE_DIR)/${MODULE}-error.pcm
 
 	@mkdir -p $(MODULE_DIR)
 
@@ -27,7 +27,7 @@ $(MODULE_DIR)/${MODULE_PREFIX}.pcm: mod.mpp \
 		-o $@
 
 
-$(OBJ_DIR)/${MODULE_PREFIX}-%.o: %.cc $(MODULE_DIR)/${MODULE_PREFIX}-%.pcm
+$(OBJ_DIR)/${MODULE}-%.o: %.cc $(MODULE_DIR)/${MODULE}-%.pcm
 
 	@mkdir -p $(OBJ_DIR)
 
@@ -37,7 +37,7 @@ $(OBJ_DIR)/${MODULE_PREFIX}-%.o: %.cc $(MODULE_DIR)/${MODULE_PREFIX}-%.pcm
 		-o $@
 
 
-$(OBJ_DIR)/${MODULE_PREFIX}-%.o: %.ccm $(MODULE_DIR)/${MODULE_PREFIX}-%.pcm
+$(OBJ_DIR)/${MODULE}-%.o: %.ccm $(MODULE_DIR)/${MODULE}-%.pcm
 
 	@mkdir -p $(OBJ_DIR)
 
@@ -47,7 +47,7 @@ $(OBJ_DIR)/${MODULE_PREFIX}-%.o: %.ccm $(MODULE_DIR)/${MODULE_PREFIX}-%.pcm
 		-o $@
 
 
-$(MODULE_DIR)/${MODULE_PREFIX}-%.pcm: %.mpp
+$(MODULE_DIR)/${MODULE}-%.pcm: %.mpp
 
 	@mkdir -p $(MODULE_DIR)
 
@@ -58,7 +58,7 @@ $(MODULE_DIR)/${MODULE_PREFIX}-%.pcm: %.mpp
 		-o $@
 
 
-$(MODULE_DIR)/${MODULE_PREFIX}-%.pcm: %.ccm
+$(MODULE_DIR)/${MODULE}-%.pcm: %.ccm
 
 	@mkdir -p $(MODULE_DIR)
 

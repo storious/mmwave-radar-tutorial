@@ -2,6 +2,7 @@ module;
 
 #include <cstddef>
 #include <expected>
+#include <memory_resource>
 
 export module mmwave.radar:adc;
 
@@ -31,6 +32,14 @@ struct TI_LVDS_Converter {
     }
     return frame;
   }
+};
+
+class RadarMemPool {
+public:
+  static std::pmr::memory_resource *get() { return &pool_; }
+
+private:
+  static inline std::pmr::unsynchronized_pool_resource pool_;
 };
 
 } // namespace mmwave::radar

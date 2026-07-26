@@ -8,29 +8,36 @@ BIN_DIR=$(BUILD_DIR)/bin
 
 MODULE_PATH=-fprebuilt-module-path=$(MODULE_DIR)
 
-# NOTE
+
+RADAR_OBJS= \
+	$(OBJ_DIR)/mmwave.radar.o \
+	$(OBJ_DIR)/mmwave.radar-frame.o \
+	$(OBJ_DIR)/mmwave.radar-adc.o \
+	$(OBJ_DIR)/mmwave.radar-fft.o \
+	$(OBJ_DIR)/mmwave.radar-fft-interface.o
+
 
 .PHONY: all
 
-all: ${BIN_DIR}/demo.out
+all: $(BIN_DIR)/demo.out $(BIN_DIR)/fft.out
 
 
-${BIN_DIR}/demo.out: $(OBJ_DIR)/demo.o
-
+$(BIN_DIR)/%.out: %/main.o
 	@mkdir -p $(BIN_DIR)
 
 	$(CXX) $(CXXFLAGS) \
 		$(MODULE_PATH) \
-		$(OBJ_DIR)/*.o \
+		$(RADAR_OBJS) \
+		$< \
+		-lfftw3 \
 		-o $@
 
 
-$(OBJ_DIR)/%.o: %.cc
+%/main.o: %/main.cc
 
-	@mkdir -p $(OBJ_DIR)
+	@mkdir -p $(@D)
 
 	$(CXX) $(CXXFLAGS) \
 		$(MODULE_PATH) \
 		-c $< \
 		-o $@
-

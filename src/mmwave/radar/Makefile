@@ -7,74 +7,45 @@ OBJ_DIR=$(BUILD_DIR)/obj
 
 MODULE_PATH=-fprebuilt-module-path=$(MODULE_DIR)
 
-# NOTE
 MODULE_PREFIX=mmwave.radar
 
-.PHONY: all
 
-all: $(MODULE_DIR)/${MODULE_PREFIX}.pcm \
-			$(OBJ_DIR)/${MODULE_PREFIX}-frame.o \
-    	$(OBJ_DIR)/${MODULE_PREFIX}-adc.o \
-			$(OBJ_DIR)/${MODULE_PREFIX}-fft.o
-
-
-
-$(MODULE_DIR)/${MODULE_PREFIX}.pcm: mod.mpp \
-    $(MODULE_DIR)/${MODULE_PREFIX}-frame.pcm \
-
-	@mkdir -p $(MODULE_DIR)
-
-	$(CXX) $(CXXFLAGS) \
-		$(MODULE_PATH) \
-		-x c++-module \
-		--precompile mod.mpp \
-		-o $@
+TYPES_PCM=$(MODULE_DIR)/$(MODULE_PREFIX)-types.pcm
+FRAME_PCM=$(MODULE_DIR)/$(MODULE_PREFIX)-frame.pcm
+ADC_PCM=$(MODULE_DIR)/$(MODULE_PREFIX)-adc.pcm
+FFT_PCM=$(MODULE_DIR)/$(MODULE_PREFIX)-fft.pcm
+RADAR_PCM=$(MODULE_DIR)/$(MODULE_PREFIX).pcm
 
 
-$(MODULE_DIR)/${MODULE_PREFIX}-frame.pcm: frame.ccm \
-    $(MODULE_DIR)/${MODULE_PREFIX}-types.pcm \
-    $(MODULE_DIR)/${MODULE_PREFIX}-adc.pcm \
-
-	@mkdir -p $(MODULE_DIR)
-
-	$(CXX) $(CXXFLAGS) \
-		$(MODULE_PATH) \
-		-x c++-module \
-		--precompile frame.ccm \
-		-o $@
+TYPES_OBJ=$(OBJ_DIR)/$(MODULE_PREFIX)-types.o
+FRAME_OBJ=$(OBJ_DIR)/$(MODULE_PREFIX)-frame.o
+ADC_OBJ=$(OBJ_DIR)/$(MODULE_PREFIX)-adc.o
+FFT_OBJ=$(OBJ_DIR)/$(MODULE_PREFIX)-fft.o
+FFT_INTERFACE_OBJ=$(OBJ_DIR)/mmwave.radar-fft-interface.o
+RADAR_OBJ=$(OBJ_DIR)/$(MODULE_PREFIX).o
 
 
-$(MODULE_DIR)/${MODULE_PREFIX}-adc.pcm: adc.ccm \
-		$(MODULE_DIR)/${MODULE_PREFIX}-fft.pcm \
+.PHONY: all clean
 
-	$(CXX) $(CXXFLAGS) \
-		$(MODULE_PATH) \
-		-x c++-module \
-		--precompile adc.ccm \
-		-o $@
-
-
-$(OBJ_DIR)/${MODULE_PREFIX}-%.o: %.cc $(MODULE_DIR)/${MODULE_PREFIX}-%.pcm
-
-	@mkdir -p $(OBJ_DIR)
-
-	$(CXX) $(CXXFLAGS) \
-		$(MODULE_PATH) \
-		-c $< \
-		-o $@
+all: \
+	$(RADAR_PCM) \
+	$(RADAR_OBJ) \
+	$(FRAME_OBJ) \
+	$(ADC_OBJ) \
+	$(FFT_OBJ) \
+	$(FFT_INTERFACE_OBJ)
 
 
-$(OBJ_DIR)/${MODULE_PREFIX}-%.o: %.ccm $(MODULE_DIR)/${MODULE_PREFIX}-%.pcm
 
-	@mkdir -p $(OBJ_DIR)
+# ==========================
+# Primary module
+# ==========================
 
-	$(CXX) $(CXXFLAGS) \
-		$(MODULE_PATH) \
-		-c $< \
-		-o $@
-
-
-$(MODULE_DIR)/${MODULE_PREFIX}-%.pcm: %.mpp
+$(RADAR_PCM): mod.mpp \
+	$(TYPES_PCM) \
+	$(FRAME_PCM) \
+	$(ADC_PCM) \
+	$(FFT_PCM)
 
 	@mkdir -p $(MODULE_DIR)
 
@@ -85,7 +56,23 @@ $(MODULE_DIR)/${MODULE_PREFIX}-%.pcm: %.mpp
 		-o $@
 
 
-$(MODULE_DIR)/${MODULE_PREFIX}-%.pcm: %.ccm
+$(RADAR_OBJ): mod.mpp $(RADAR_PCM)
+
+	@mkdir -p $(OBJ_DIR)
+
+	$(CXX) $(CXXFLAGS) \
+		$(MODULE_PATH) \
+		-x c++-module \
+		-c $< \
+		-o $@
+
+
+
+# ==========================
+# Partition interface
+# ==========================
+
+$(TYPES_PCM): types.mpp
 
 	@mkdir -p $(MODULE_DIR)
 
@@ -95,3 +82,91 @@ $(MODULE_DIR)/${MODULE_PREFIX}-%.pcm: %.ccm
 		--precompile $< \
 		-o $@
 
+
+$(FRAME_PCM): frame.ccm \
+	$(TYPES_PCM) \
+	$(ADC_PCM)
+
+	@mkdir -p $(MODULE_DIR)
+
+	$(CXX) $(CXXFLAGS) \
+		$(MODULE_PATH) \
+		-x c++-module \
+		--precompile $< \
+		-o $@
+
+
+$(ADC_PCM): adc.ccm \
+	$(FFT_PCM)
+
+	@mkdir -p $(MODULE_DIR)
+
+	$(CXX) $(CXXFLAGS) \
+		$(MODULE_PATH) \
+		-x c++-module \
+		--precompile $< \
+		-o $@
+
+
+$(FFT_PCM): fft.mpp \
+	$(TYPES_PCM)
+
+	@mkdir -p $(MODULE_DIR)
+
+	$(CXX) $(CXXFLAGS) \
+		$(MODULE_PATH) \
+		-x c++-module \
+		--precompile $< \
+		-o $@
+
+
+
+# ==========================
+# Partition implementation
+# ==========================
+
+$(FRAME_OBJ): frame.ccm $(FRAME_PCM)
+
+	@mkdir -p $(OBJ_DIR)
+
+	$(CXX) $(CXXFLAGS) \
+		$(MODULE_PATH) \
+		-x c++-module \
+		-c $< \
+		-o $@
+
+
+$(ADC_OBJ): adc.ccm $(ADC_PCM)
+
+	@mkdir -p $(OBJ_DIR)
+
+	$(CXX) $(CXXFLAGS) \
+		$(MODULE_PATH) \
+		-x c++-module \
+		-c $< \
+		-o $@
+
+
+$(FFT_OBJ): fft.cc $(FFT_PCM)
+
+	@mkdir -p $(OBJ_DIR)
+
+	$(CXX) $(CXXFLAGS) \
+		$(MODULE_PATH) \
+		-c $< \
+		-o $@
+
+$(FFT_INTERFACE_OBJ): \
+    fft.mpp \
+    $(MODULE_DIR)/${FFT_PCM}
+
+	@mkdir -p $(OBJ_DIR)
+
+	$(CXX) $(CXXFLAGS) \
+		$(MODULE_PATH) \
+		-x c++-module \
+		-c fft.mpp \
+		-o $@
+
+clean:
+	rm -rf $(BUILD_DIR)
