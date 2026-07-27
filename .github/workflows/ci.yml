@@ -1,0 +1,56 @@
+name: C++23 Module CI
+
+on:
+  push:
+    branches:
+      - main
+      - dev
+
+  pull_request:
+    branches:
+      - main
+      - dev
+
+
+jobs:
+  build:
+
+    runs-on: ubuntu-24.04
+
+    steps:
+
+      - name: Checkout
+        uses: actions/checkout@v6
+
+
+      - name: Install dependencies
+        run: |
+          sudo apt update
+
+          sudo apt install -y \
+            clang \
+            libc++-dev \
+            libc++abi-dev \
+            make \
+            libfftw3-dev
+
+
+      - name: Check toolchain
+        run: |
+          clang++ --version
+          make --version
+
+
+      - name: Build modules
+        run: |
+          make
+
+
+      - name: Build demos
+        run: |
+          make demo
+
+
+      - name: Run FFT demo
+        run: |
+          ./build/mmwave/bin/fft.out

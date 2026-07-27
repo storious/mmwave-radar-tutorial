@@ -10,12 +10,12 @@ extern "C" {
 #include "fftw3.h"
 }
 
-export namespace mmwave::radar {
+namespace mmwave::radar {
 
 constexpr auto FORWARD = FFTW_FORWARD;
 constexpr auto ESTIMATE = FFTW_ESTIMATE;
 
-class FFTWMemPool final : public std::pmr::memory_resource {
+export class FFTWMemPool final : public std::pmr::memory_resource {
 
 public:
   FFTWMemPool() = default;
@@ -56,9 +56,7 @@ public:
 
   FFTWPlan &operator=(const FFTWPlan &) = delete;
 
-  FFTWPlan(FFTWPlan &&other) noexcept : plan_(other.plan_) {
-    other.plan_ = nullptr;
-  }
+  FFTWPlan(FFTWPlan &&other) noexcept;
 
   FFTWPlan &operator=(FFTWPlan &&other) noexcept {
     if (this != &other) {
@@ -70,36 +68,26 @@ public:
     return *this;
   }
 
-  void execute() noexcept {
-    if (plan_)
-      fftw_execute(plan_);
-  }
-
-  void reset() noexcept {
-    if (plan_) {
-      fftw_destroy_plan(plan_);
-      plan_ = nullptr;
-    }
-  }
-
   explicit operator bool() const noexcept { return plan_ != nullptr; }
+
+  void execute() noexcept;
+
+  void reset() noexcept;
 
 private:
   fftw_plan plan_{nullptr};
 };
 
-class RadarFFT {
+export class RadarFFT {
 public:
-  explicit RadarFFT(std::pmr::memory_resource *resource)
-      : resource_(resource) {};
+  void create_range_plan(ComplexView in, ComplexView out);
+  void create_doppler_plan(ComplexView in, ComplexView out);
 
-  FFTWPlan create_1d_plan(int n, fftw_complex *in, fftw_complex *out);
-
-  static FrameView run_1d(ConstFrameView input) noexcept;
-  static FrameView run_2d(ConstFrameView input) noexcept;
+  void range_fft() noexcept;
+  void doppler_fft() noexcept;
 
 private:
-  std::pmr::memory_resource *resource_;
+  FFTWPlan plans_[3];
 };
 
 } // namespace mmwave::radar

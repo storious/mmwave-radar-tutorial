@@ -3,4 +3,5 @@
 *.pcm
 .cache/
 .xmake/
+.cmake/
 build/

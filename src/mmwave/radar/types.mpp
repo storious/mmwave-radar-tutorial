@@ -21,17 +21,22 @@ struct RadarConfig {
       total_samples * sizeof(std::complex<std::int16_t>);
 };
 
-using DefaultConfig = RadarConfig<256, 4, 128>;
+using DefaultConfig = RadarConfig<128, 4, 2>;
 
 using RawBytes = std::vector<std::byte>;
 using RawInt16 = std::vector<std::int16_t>;
 using ComplexI16 = std::complex<std::int16_t>;
 using ADCFrame = std::pmr::vector<ComplexI16>;
 
+using FFTComplex = std::complex<float>;
+using FFTFrame = std::pmr::vector<FFTComplex>;
+
 using FrameView =
     std::mdspan<ComplexI16, std::dextents<std::size_t, 3>, std::layout_right>;
 using ConstFrameView =
     std::mdspan<const ComplexI16, std::dextents<std::size_t, 3>,
                 std::layout_right>;
+using ComplexView =
+    std::mdspan<FFTComplex, std::dextents<std::size_t, 4>, std::layout_right>;
 
 } // namespace mmwave::radar

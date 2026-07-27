@@ -5,8 +5,11 @@ module;
 #include <cstdint>
 #include <expected>
 #include <fstream>
+#include <iterator>
 #include <print>
 #include <string>
+#include <utility>
+#include <vector>
 
 export module mmwave.radar:frame;
 
@@ -85,7 +88,43 @@ public:
     return Conv::convert(i16);
   }
 
-  [[nodiscard]] bool is_open() const noexcept { return _opened; }
+  Result<std::pair<FFTFrame, std::size_t>> read_complex_frames() noexcept {
+    if (!_opened)
+      return std::unexpected(FrameError::files_not_open);
+
+    auto frames = estimate_frames();
+    FFTFrame cube;
+
+    cube.resize(frames * Config::chirps_per_frame * Config::rx_channels *
+                Config::samples_per_chirp);
+    std::size_t _count = {0};
+    std::size_t _offset = {0};
+
+    while (true) {
+      // TODO Zero-Copy
+      auto frame = read_frame();
+
+      if (!frame) {
+        if (frame.error() == FrameError::end_of_file or
+            frame.error() == FrameError::read_incomplete)
+          break;
+
+        return std::unexpected(frame.error());
+      }
+
+      _count++;
+      if (_count % 1000 == 0)
+        std::println("reading frame {}", _count);
+
+      for (auto sample : *frame) {
+        cube[_offset++] = FFTComplex{static_cast<float>(sample.real()),
+                                     static_cast<float>(sample.imag())};
+      }
+    }
+
+    cube.resize(_count);
+    return std::pair{cube, _count};
+  }
 
 private:
   [[nodiscard]] std::size_t read_bytes(std::byte *dst, std::size_t n) noexcept {
@@ -98,6 +137,18 @@ private:
       done += s.gcount();
     }
     return done;
+  }
+
+  std::size_t estimate_frames() {
+    auto pos = _streams[0].tellg();
+
+    _streams[0].seekg(0, std::ios::end);
+
+    auto size = _streams[0].tellg();
+
+    _streams[0].seekg(pos);
+
+    return size / Config::frame_bytes;
   }
 
   std::vector<std::string> _paths;
@@ -113,6 +164,13 @@ public:
       return std::unexpected(FrameError::data_mismatch);
     return FrameView{f.data(), C::chirps_per_frame, C::rx_channels,
                      C::samples_per_chirp};
+  }
+
+  template <typename C = DefaultConfig>
+  [[nodiscard]] static ComplexView
+  make_complex_view(FFTFrame &f, std::size_t frames) noexcept {
+    return ComplexView{f.data(), frames, C::chirps_per_frame, C::rx_channels,
+                       C::samples_per_chirp};
   }
 
   template <typename C = DefaultConfig>
