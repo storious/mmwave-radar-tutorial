@@ -41,6 +41,11 @@ jobs:
           make --version
 
 
+      - name: Clean
+        run: |
+          rm -rf build
+
+
       - name: Build modules
         run: |
           make
