@@ -21,16 +21,20 @@ struct RadarConfig {
       total_samples * sizeof(std::complex<std::int16_t>);
 };
 
+// Default Radar Configuration
 using DefaultConfig = RadarConfig<128, 4, 2>;
 
+// ADC Types
 using RawBytes = std::vector<std::byte>;
 using RawInt16 = std::vector<std::int16_t>;
 using ComplexI16 = std::complex<std::int16_t>;
 using ADCFrame = std::pmr::vector<ComplexI16>;
 
+// FFT Types
 using FFTComplex = std::complex<float>;
 using FFTFrame = std::pmr::vector<FFTComplex>;
 
+// View Types
 using FrameView =
     std::mdspan<ComplexI16, std::dextents<std::size_t, 3>, std::layout_right>;
 using ConstFrameView =
@@ -38,5 +42,17 @@ using ConstFrameView =
                 std::layout_right>;
 using ComplexView =
     std::mdspan<FFTComplex, std::dextents<std::size_t, 4>, std::layout_right>;
+
+// For Python Binding
+using RadarCube = std::pmr::vector<FFTComplex>;
+
+struct RDCube {
+  RadarCube data;
+
+  size_t frames;
+  size_t doppler;
+  size_t rx;
+  size_t range;
+};
 
 } // namespace mmwave::radar

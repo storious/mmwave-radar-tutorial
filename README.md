@@ -1,3 +1,3 @@
 # mmwave-radar-tutorial
 
-Some simple mmwave radar algrothims written in C++
+Some simple mmwave radar algorithms written in C++
