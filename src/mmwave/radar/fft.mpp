@@ -73,9 +73,13 @@ public:
 
   void range_fft();
 
-  void doppler_fft(ComplexView input, ComplexView output);
+  void doppler_fft();
 
 private:
+  void create_range_plan(ComplexView input, ComplexView output);
+
+  void create_doppler_plan(ComplexView range);
+
   FFTWPlan plans_[2];
 };
 

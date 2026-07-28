@@ -41,6 +41,7 @@ auto main() -> int {
                out_view.size());
   RadarFFT fft(in_view, out_view);
   fft.range_fft();
-
-  std::println("FFT OK");
+  std::println("Range FFT OK");
+  fft.doppler_fft();
+  std::println("Doppler FFT OK");
 }

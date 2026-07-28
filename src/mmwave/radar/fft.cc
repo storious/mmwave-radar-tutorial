@@ -1,5 +1,4 @@
 module;
-#include <cassert>
 #include <fftw3.h>
 module mmwave.radar;
 
@@ -40,12 +39,15 @@ FFTWPlan &FFTWPlan::operator=(FFTWPlan &&other) noexcept {
   return *this;
 }
 
-void FFTWPlan::execute() noexcept {
-  assert(plan_);
-  fftwf_execute(plan_);
-}
+void FFTWPlan::execute() noexcept { fftwf_execute(plan_); }
 
 RadarFFT::RadarFFT(ComplexView input, ComplexView output) {
+  create_range_plan(input, output);
+  create_doppler_plan(output);
+}
+
+void RadarFFT::create_range_plan(ComplexView input, ComplexView output) {
+
   fftwf_iodim dim;
 
   dim.n = static_cast<int>(input.extent(3));
@@ -74,10 +76,50 @@ RadarFFT::RadarFFT(ComplexView input, ComplexView output) {
       FFTW_FORWARD, FFTW_ESTIMATE);
 
   plans_[0] = FFTWPlan(plan);
-  assert(plans_[0]);
+}
+
+void RadarFFT::create_doppler_plan(ComplexView range) {
+
+  fftwf_iodim dim;
+
+  // chirp axis
+  dim.n = static_cast<int>(range.extent(1));
+  dim.is = static_cast<int>(range.stride(1));
+  dim.os = dim.is;
+
+  fftwf_iodim howmany[3];
+
+  // range
+  howmany[0].n = static_cast<int>(range.extent(3));
+  howmany[0].is = static_cast<int>(range.stride(3));
+  howmany[0].os = howmany[0].is;
+
+  // rx
+  howmany[1].n = static_cast<int>(range.extent(2));
+  howmany[1].is = static_cast<int>(range.stride(2));
+  howmany[1].os = howmany[1].is;
+
+  // frame
+  howmany[2].n = static_cast<int>(range.extent(0));
+  howmany[2].is = static_cast<int>(range.stride(0));
+  howmany[2].os = howmany[2].is;
+
+  auto plan = fftwf_plan_guru_dft(
+      1, &dim,
+
+      3, howmany,
+
+      reinterpret_cast<fftwf_complex *>(range.data_handle()),
+
+      reinterpret_cast<fftwf_complex *>(range.data_handle()),
+
+      FFTW_FORWARD, FFTW_ESTIMATE);
+
+  plans_[1] = FFTWPlan(plan);
 }
 
 void RadarFFT::range_fft() { plans_[0].execute(); }
 
-void RadarFFT::doppler_fft(ComplexView input, ComplexView output) {}
+void RadarFFT::doppler_fft() { plans_[1].execute(); }
+
 } // namespace mmwave::radar
