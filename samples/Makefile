@@ -29,7 +29,7 @@ $(BIN_DIR)/%.out: %/main.o
 		$(MODULE_PATH) \
 		$(RADAR_OBJS) \
 		$< \
-		-lfftw3 \
+		-lfftw3f \
 		-o $@
 
 

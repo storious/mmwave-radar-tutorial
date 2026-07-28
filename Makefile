@@ -14,7 +14,8 @@ OBJECTS=$(patsubst %.ccm,%.o,$(wildcard *.ccm))
 build:
 	${MAKE} -C ./src/ 
 
-demo:
+demo: build
+	rm -rf build/mmwave/bin/
 	${MAKE} -C ./samples/
 
 run: std.pcm $(MODULES) $(OBJECTS)

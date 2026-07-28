@@ -1,79 +1,83 @@
+module;
+#include <cassert>
+#include <fftw3.h>
 module mmwave.radar;
 
 import :types;
 import :fft;
 
 namespace mmwave::radar {
-static fftw_complex *to_fftw(FFTComplex *ptr) {
-  return reinterpret_cast<fftw_complex *>(ptr);
+static fftwf_complex *to_fftwf(FFTComplex *ptr) {
+  return reinterpret_cast<fftwf_complex *>(ptr);
 }
 
-FFTWPlan::FFTWPlan(fftw_plan plan) noexcept : plan_(plan) {}
-
+FFTWPlan::FFTWPlan(fftwf_plan plan) noexcept : plan_(plan) {}
 FFTWPlan::FFTWPlan(FFTWPlan &&other) noexcept : plan_(other.plan_) {
   other.plan_ = nullptr;
 }
 
-void FFTWPlan::execute() noexcept {
+FFTWPlan::~FFTWPlan() {
   if (plan_)
-    fftw_execute(plan_);
+    fftwf_destroy_plan(plan_);
 }
 
 void FFTWPlan::reset() noexcept {
   if (plan_) {
-    fftw_destroy_plan(plan_);
+    fftwf_destroy_plan(plan_);
     plan_ = nullptr;
   }
 }
 
-void RadarFFT::create_range_plan(ComplexView input, ComplexView output) {
-  int n[1] = {static_cast<int>(input.extent(3))};
+FFTWPlan &FFTWPlan::operator=(FFTWPlan &&other) noexcept {
+  if (this != &other) {
+    reset();
 
-  int howmany = input.extent(0) * input.extent(1) * input.extent(2);
+    plan_ = other.plan_;
 
-  plans_[0] =
-      fftw_plan_many_dft(1, n, howmany,
+    other.plan_ = nullptr;
+  }
 
-                         reinterpret_cast<fftw_complex *>(input.data_handle()),
-
-                         nullptr, 1, input.extent(3),
-
-                         reinterpret_cast<fftw_complex *>(output.data_handle()),
-
-                         nullptr, 1, output.extent(3),
-
-                         FORWARD, ESTIMATE);
+  return *this;
 }
 
-void RadarFFT::create_doppler_plan(ComplexView input, ComplexView output) {
-  int n[1] = {static_cast<int>(input.extent(1))};
-
-  int howmany = input.extent(0) * input.extent(2) * input.extent(3);
-
-  int stride = input.extent(2) * input.extent(3);
-
-  plans_[1] =
-      fftw_plan_many_dft(1, n, howmany,
-
-                         reinterpret_cast<fftw_complex *>(input.data_handle()),
-
-                         nullptr, stride, 1,
-
-                         reinterpret_cast<fftw_complex *>(output.data_handle()),
-
-                         nullptr, stride, 1,
-
-                         FORWARD, ESTIMATE);
+void FFTWPlan::execute() noexcept {
+  assert(plan_);
+  fftwf_execute(plan_);
 }
 
-void RadarFFT::range_fft() noexcept {
-  // FFTW / custom FFT implementation
-  plans_[0].execute();
+RadarFFT::RadarFFT(ComplexView input, ComplexView output) {
+  fftwf_iodim dim;
+
+  dim.n = static_cast<int>(input.extent(3));
+
+  dim.is = 1;
+  dim.os = 1;
+
+  fftwf_iodim howmany;
+
+  howmany.n =
+      static_cast<int>(input.extent(0) * input.extent(1) * input.extent(2));
+
+  howmany.is = static_cast<int>(input.extent(3));
+
+  howmany.os = static_cast<int>(output.extent(3));
+
+  auto plan = fftwf_plan_guru_dft(
+      1, &dim,
+
+      1, &howmany,
+
+      reinterpret_cast<fftwf_complex *>(input.data_handle()),
+
+      reinterpret_cast<fftwf_complex *>(output.data_handle()),
+
+      FFTW_FORWARD, FFTW_ESTIMATE);
+
+  plans_[0] = FFTWPlan(plan);
+  assert(plans_[0]);
 }
 
-void RadarFFT::doppler_fft() noexcept {
-  // Doppler FFT
-  plans_[1].execute();
-}
+void RadarFFT::range_fft() { plans_[0].execute(); }
 
+void RadarFFT::doppler_fft(ComplexView input, ComplexView output) {}
 } // namespace mmwave::radar

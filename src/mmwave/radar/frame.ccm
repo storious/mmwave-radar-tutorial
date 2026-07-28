@@ -6,6 +6,7 @@ module;
 #include <expected>
 #include <fstream>
 #include <iterator>
+#include <memory_resource>
 #include <print>
 #include <string>
 #include <utility>
@@ -15,6 +16,8 @@ export module mmwave.radar:frame;
 
 import :types;
 import :adc;
+import :fft;
+
 import mmwave.common;
 
 export namespace mmwave::radar {
@@ -27,6 +30,7 @@ using VoidResult = Result<std::monostate>;
 template <typename Config = DefaultConfig> class FrameReader {
 public:
   FrameReader() = default;
+  FrameReader(std::pmr::memory_resource *resource) : _resource(resource) {};
   ~FrameReader() { close(); }
 
   FrameReader(const FrameReader &) = delete;
@@ -93,7 +97,7 @@ public:
       return std::unexpected(FrameError::files_not_open);
 
     auto frames = estimate_frames();
-    FFTFrame cube;
+    FFTFrame cube(_resource);
 
     cube.resize(frames * Config::chirps_per_frame * Config::rx_channels *
                 Config::samples_per_chirp);
@@ -122,7 +126,6 @@ public:
       }
     }
 
-    cube.resize(_count);
     return std::pair{cube, _count};
   }
 
@@ -154,6 +157,7 @@ private:
   std::vector<std::string> _paths;
   std::vector<std::ifstream> _streams;
   bool _opened = false;
+  std::pmr::memory_resource *_resource;
 };
 
 class FrameProcessor {

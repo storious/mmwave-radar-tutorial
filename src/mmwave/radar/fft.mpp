@@ -27,14 +27,14 @@ public:
 private:
   void *do_allocate(std::size_t bytes, std::size_t alignment) override {
     // FFTW guarantees SIMD alignment
-    if (auto ptr = fftw_malloc(bytes))
+    if (auto ptr = fftwf_malloc(bytes))
       return ptr;
 
     throw std::bad_alloc{};
   }
 
   void do_deallocate(void *ptr, std::size_t, std::size_t) override {
-    fftw_free(ptr);
+    fftwf_free(ptr);
   }
 
   bool
@@ -42,52 +42,41 @@ private:
     return this == &other;
   }
 };
-
 class FFTWPlan {
 
 public:
   FFTWPlan() = default;
 
-  FFTWPlan(fftw_plan plan) noexcept;
+  FFTWPlan(fftwf_plan plan) noexcept;
 
-  ~FFTWPlan() { reset(); }
+  ~FFTWPlan();
 
   FFTWPlan(const FFTWPlan &) = delete;
-
   FFTWPlan &operator=(const FFTWPlan &) = delete;
 
   FFTWPlan(FFTWPlan &&other) noexcept;
 
-  FFTWPlan &operator=(FFTWPlan &&other) noexcept {
-    if (this != &other) {
-      reset();
-      plan_ = other.plan_;
-      other.plan_ = nullptr;
-    }
-
-    return *this;
-  }
+  FFTWPlan &operator=(FFTWPlan &&other) noexcept;
 
   explicit operator bool() const noexcept { return plan_ != nullptr; }
 
   void execute() noexcept;
 
-  void reset() noexcept;
-
 private:
-  fftw_plan plan_{nullptr};
+  void reset() noexcept;
+  fftwf_plan plan_{nullptr};
 };
 
 export class RadarFFT {
 public:
-  void create_range_plan(ComplexView in, ComplexView out);
-  void create_doppler_plan(ComplexView in, ComplexView out);
+  RadarFFT(ComplexView input, ComplexView output);
 
-  void range_fft() noexcept;
-  void doppler_fft() noexcept;
+  void range_fft();
+
+  void doppler_fft(ComplexView input, ComplexView output);
 
 private:
-  FFTWPlan plans_[3];
+  FFTWPlan plans_[2];
 };
 
 } // namespace mmwave::radar
